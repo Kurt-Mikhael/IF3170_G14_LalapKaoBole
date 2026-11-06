@@ -1,0 +1,248 @@
+\documentclass[12pt,a4paper]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[margin=2.5cm,headheight=16pt,headsep=18pt]{geometry}
+\usepackage{graphicx}
+\usepackage{fancyhdr}
+\usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{amsmath}
+\usepackage{tikz}
+\usepackage{listings}
+\usepackage{inconsolata}
+\usepackage{caption}
+\usepackage[section]{placeins}
+\usepackage{needspace}
+\usepackage{float}
+\usepackage[normalem]{ulem}
+\usepackage[hidelinks]{hyperref}
+\graphicspath{{docs/}{./}}
+
+\renewcommand{\contentsname}{Daftar Isi}
+\renewcommand{\appendixname}{Lampiran}
+\renewcommand{\tablename}{Tabel}
+\renewcommand{\figurename}{Gambar}
+\setcounter{tocdepth}{3}
+\setlength{\parindent}{1.5em}
+\setlength{\parskip}{0pt}
+\lstset{language=Python,basicstyle=\ttfamily\footnotesize,keywordstyle=\bfseries,emphstyle=\bfseries,breaklines=true,frame=single,showstringspaces=false,columns=fullflexible,aboveskip=3pt,belowskip=3pt,floatplacement=htbp,float=htbp,float=true}
+\makeatletter
+\setlength{\@fpsep}{10pt}
+\makeatother
+\setlength{\textfloatsep}{10pt}
+\setlength{\intextsep}{10pt}
+\captionsetup{font=small,labelfont=bf,labelsep=period,skip=6pt}
+\raggedbottom
+\clubpenalty=10000
+\widowpenalty=10000
+\displaywidowpenalty=10000
+\renewcommand{\topfraction}{0.9}
+\renewcommand{\bottomfraction}{0.8}
+\renewcommand{\textfraction}{0.08}
+\renewcommand{\floatpagefraction}{0.75}
+\AddToHook{cmd/subsection/before}{\FloatBarrier\Needspace{7\baselineskip}}
+\AddToHook{cmd/subsubsection/before}{\FloatBarrier\Needspace{5\baselineskip}}
+\renewcommand{\lstlistingname}{Cuplikan}
+
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{IF3170 -- Inteligensi Artifisial}
+\fancyhead[R]{\thepage}
+\renewcommand{\headrulewidth}{0.4pt}
+\renewcommand{\footrulewidth}{0pt}
+
+\begin{document}
+
+\hypersetup{pageanchor=false}
+\begin{titlepage}
+    \centering
+    {\Huge\bfseries Laporan Tugas Besar 2\par}
+    \vspace{0.5cm}
+    {\LARGE\scshape IF3170 Inteligensi Artifisial\par}
+    \vspace{0.3cm}
+    {\Large\scshape Klasifikasi Pembatalan Pemesanan Penginapan\par}
+    \vspace{0.2cm}
+    {\Large\scshape dengan Algoritma Supervised Learning\par}
+    \vspace{0.3cm}
+    {\Large\scshape Tahun Akademik 2026--2027\par}
+    \vfill
+    \includegraphics[width=7.5cm,keepaspectratio]{logo-itb.png}\par
+    \vfill
+    {\large\bfseries Disusun oleh:\par}
+    \vspace{0.3cm}
+    {\large LalapKaoBole\par}
+    \vspace{0.3cm}
+    {\large Nicholas Wise Saragih Sumbayak -- 13524037\par}
+    {\large Nathan E C Marpaung -- 13524062\par}
+    {\large Kurt Mikhael Purba -- 13524065\par}
+    {\large Aurelia Jennifer Gunawan -- 13524089\par}
+    {\large Amanda Aurellia Salsabila -- 13524131\par}
+    \vfill
+    {\large\scshape Laboratorium Inteligensi Artifisial\par}
+    {\large\scshape Program Studi Teknik Informatika\par}
+    {\large\scshape Sekolah Teknik Elektro dan Informatika\par}
+    {\large\scshape Institut Teknologi Bandung\par}
+\end{titlepage}
+
+\pagenumbering{arabic}
+\hypersetup{pageanchor=true}
+{\small\linespread{0.92}\selectfont\tableofcontents}
+\clearpage
+
+\section{Pendahuluan}
+\subsection{Latar Belakang}
+
+\subsection{Rumusan Persoalan dan Tujuan}
+
+\subsection{Deskripsi Dataset}
+\subsubsection{Sumber dan Struktur Dataset}
+\subsubsection{Atribut dan Tipe Data}
+\subsubsection{Variabel Target}
+\subsubsection{Eksplorasi Data}
+
+\subsection{Batasan Persoalan}
+
+\section{Dasar Teori}
+\subsection{Supervised Learning}
+\subsection{Klasifikasi}
+\subsection{K-Nearest Neighbors}
+\subsection{Decision Tree Learning}
+\subsubsection{Iterative Dichotomiser 3 (ID3)}
+\subsubsection{C4.5}
+\subsubsection{Classification and Regression Tree (CART)}
+\subsection{Logistic Regression}
+\subsubsection{Regularisasi L1}
+\subsubsection{Regularisasi L2}
+\subsubsection{Elastic Net}
+\subsection{Support Vector Machine}
+\subsubsection{Kernel Linear}
+\subsubsection{Kernel Polinomial}
+\subsubsection{Kernel Gaussian}
+\subsection{Bayesian Network (Naive Bayes)}
+\subsection{Validasi dan Metrik Evaluasi}
+
+\section{Pembahasan dan Implementasi}
+\subsection{Arsitektur Aplikasi}
+\subsubsection{Struktur Aplikasi}
+\subsubsection{Tech Stack}
+\subsection{Deskripsi Fungsi dan Kelas}
+\subsubsection{K-Nearest Neighbors}
+\subsubsection{Decision Tree Learning}
+\subsubsection{Logistic Regression}
+\subsubsection{Support Vector Machine}
+\subsubsection{Bayesian Network (Naive Bayes)}
+\subsection{Data Cleaning}
+\subsubsection{Penanganan Nilai Hilang}
+\subsubsection{Penanganan Data Duplikat}
+\subsubsection{Penanganan Data Tidak Valid}
+\subsection{Data Transformation}
+\subsubsection{Encoding Fitur Kategorikal}
+\subsubsection{Normalisasi dan Standardisasi Fitur Numerik}
+\subsubsection{Penanganan Ketidakseimbangan Kelas}
+\subsection{Feature Selection}
+\subsection{Dimensionality Reduction}
+\subsection{Implementasi Pembanding dengan scikit-learn}
+\subsection{Penyimpanan dan Pemuatan Model}
+
+\section{Eksperimen dan Analisis}
+\subsection{Rancangan Eksperimen}
+\subsubsection{Data Training dan Data Test}
+\subsubsection{Pembagian Data dan Validasi}
+\subsubsection{Konfigurasi Parameter}
+\subsubsection{Metrik Evaluasi}
+\subsection{Hasil Eksperimen dan Visualisasi}
+\subsubsection{K-Nearest Neighbors}
+\subsubsection{Decision Tree Learning}
+\subsubsection{Logistic Regression}
+\subsubsection{Support Vector Machine}
+\subsubsection{Bayesian Network (Naive Bayes)}
+\subsection{Perbandingan Implementasi from-scratch dengan scikit-learn}
+\subsubsection{Perbandingan Metrik}
+\subsubsection{Analisis Waktu Eksekusi}
+\subsubsection{Analisis Visualisasi}
+\subsection{Kaggle Submission}
+
+\clearpage
+\section{Kesimpulan dan Saran}
+\subsection{Kesimpulan}
+\subsection{Saran}
+
+\pagebreak
+\section{Pembagian Tugas Tiap Anggota Kelompok}
+\begin{table}[ht]
+    \centering
+    \renewcommand{\arraystretch}{1.5}
+    \begin{tabularx}{\textwidth}{@{}p{6.1cm}lX@{}}
+        \toprule
+        \textbf{Nama Lengkap} & \textbf{NIM} & \textbf{Tugas/Kontribusi} \\
+        \midrule
+        Nicholas Wise Saragih Sumbayak & 13524037 & \\
+        Nathan E C Marpaung & 13524062 & \\
+        Kurt Mikhael Purba & 13524065 & \\
+        Aurelia Jennifer Gunawan & 13524089 & \\
+        Amanda Aurellia Salsabila & 13524131 & \\
+        \bottomrule
+    \end{tabularx}
+    \caption{Pembagian tugas anggota kelompok}
+\end{table}
+
+\clearpage
+\section{Referensi}
+
+\clearpage
+\section{Lampiran}
+\subsection{Form Penggunaan \textit{Generative} AI}
+\begin{center}
+    {\large\bfseries SURAT PERNYATAAN PENGGUNAAN AI\par}
+\end{center}
+\vspace{-0.3em}
+\noindent Dengan ini, \sout{saya}/kami*:
+
+\begin{tabular}{@{}l@{\hspace{1.2em}}l@{\hspace{0.8em}}p{0.62\textwidth}@{}}
+    Nama/NIM & : & Nicholas Wise Saragih Sumbayak/13524037, Nathan E C Marpaung/13524062, Kurt Mikhael Purba/13524065, Aurelia Jennifer Gunawan/13524089, Amanda Aurellia Salsabila/13524131 \\
+    Fakultas/Sekolah & : & STEI-K \\
+    Kode Mata Kuliah & : & IF3170 \\
+    Nama Mata Kuliah & : & Inteligensi Artifisial \\
+    Judul Tugas/Proposal & : & Tugas Besar 2 \\
+\end{tabular}
+
+\vspace{0.6em}
+\noindent Menyatakan bahwa \sout{saya}/kami* \underline{menggunakan/tidak menggunakan}* AI dalam pengerjaan maupun penyusunan luaran tugas pada mata kuliah yang tertulis di atas.
+
+\vspace{0.4em}
+\noindent Jika Ya, maka alat AI/kecerdasan buatan yang digunakan adalah:
+
+\vspace{0.4em}
+\begin{table}[H]
+    \centering
+    \small
+    \renewcommand{\arraystretch}{1.15}
+    \begin{tabularx}{\textwidth}{|>{\raggedright\arraybackslash}X|c|>{\centering\arraybackslash}p{2.6cm}|}
+        \hline
+        \multicolumn{1}{|c|}{\textbf{Lingkup Pekerjaan}} & \textbf{Digunakan?} & \textbf{Tingkat Penggunaan} \\
+        \hline
+        \textbf{Pemeriksaan Ejaan:} menggunakan tools seperti Grammarly, Paperpal, DeepL, Quillbot, Grammarbot, LanguageTool, ProWritingAid, ChatGPT, Google Gemini, atau sejenisnya. & & \\
+        \hline
+        \textbf{Pembuatan Teks:} menggunakan tools seperti ChatGPT, Gemini, Paperpal, Copilot, GrammarlyGO, WordAI, WriteSonic, Jasper, Jenni AI, atau sejenisnya. & & \\
+        \hline
+        \textbf{Bantuan Diskusi dalam Penyusunan Konten:} menggunakan tools seperti ChatGPT, Gemini, Copilot, Perplexity, Jenni AI, Zoom-Companion, atau sejenisnya. & & \\
+        \hline
+        \textbf{Pembuatan Gambar, Video, dan/atau Grafik:} menggunakan tools seperti Craiyon, DALL-E, Midjourney, Stable Diffusion, Microsoft Designer, Gemini, Canva AI, atau sejenisnya. & & \\
+        \hline
+        \textbf{Lainnya, Jelaskan:}\vspace{1.6em} & & \\
+        \hline
+    \end{tabularx}
+\end{table}
+
+\noindent \sout{Saya}/Kami* juga menyatakan bahwa setiap penggunaan AI/kecerdasan buatan yang dilakukan pada mata kuliah tersebut telah dinyatakan di dalam surat ini.
+
+\vspace{0.5em}
+\hfill\begin{minipage}{6.5cm}
+    \raggedleft
+    Bandung, \rule{3cm}{0.4pt}\par
+    \vspace{1.8cm}
+    \rule{5cm}{0.4pt}\par
+    Nama dan NIM
+\end{minipage}
+
+\end{document}
