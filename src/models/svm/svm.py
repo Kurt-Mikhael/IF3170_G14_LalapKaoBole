@@ -127,7 +127,9 @@ class SVM:
             or not np.isfinite(self.gamma)
             or self.gamma <= 0
         ):
-            raise ValueError("gamma must be 'scale', 'auto', or a positive finite number")
+            raise ValueError(
+                "gamma must be 'scale', 'auto', or a positive finite number"
+            )
         if (
             isinstance(self.coef0, bool)
             or not isinstance(self.coef0, Real)
@@ -144,7 +146,9 @@ class SVM:
         y = np.asarray(y)
         if y.ndim != 1 or len(y) != len(X):
             raise ValueError("y must be one-dimensional and match X samples")
-        if y.dtype.kind not in "biufUS" or (y.dtype.kind in "iuf" and not np.isfinite(y).all()):
+        if y.dtype.kind not in "biufUS" or (
+            y.dtype.kind in "iuf" and not np.isfinite(y).all()
+        ):
             raise ValueError("y labels must be finite numbers or strings")
         classes = np.unique(y)
         if len(classes) != 2:
@@ -190,10 +194,7 @@ class SVM:
         self.support_ = support
         self.support_vectors_ = X[support].copy()
         self.n_support_ = np.array(
-            [
-                np.sum((self._alphas > 0) & (signs == s))
-                for s in (-1, 1)
-            ]
+            [np.sum((self._alphas > 0) & (signs == s)) for s in (-1, 1)]
         )
         self.dual_coef_ = (self._alphas[support] * signs[support])[None, :]
         self.intercept_ = np.array([self._b])
