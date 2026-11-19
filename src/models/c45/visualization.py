@@ -8,7 +8,8 @@ class DrawNode:
     # node yang benar-benar digambar (hasil pemotongan top_n / max_depth)
     def __init__(self, label, kind, prediction=None):
         self.label = label
-        self.kind = kind              
+        self.kind = kind
+        self.prediction = prediction  # indeks kelas mayoritas, dipakai untuk warna
         self.children = []            # list of (edge_label, DrawNode)
         self.x = 0.0
         self.depth = 0
