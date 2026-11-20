@@ -17,8 +17,12 @@ def cost_sensitive_threshold(false_positive_cost=2.0, false_negative_cost=1.0):
 def predict_cost_sensitive(probability_positive, false_positive_cost=2.0, false_negative_cost=1.0):
     probabilities = np.asarray(probability_positive, dtype=float)
     
-    if probabilities.ndim != 1 or not np.isfinite(probabilities).all() or np.any((probabilities < 0) | (probabilities > 1)):
+    if probabilities.ndim != 1 or not np.isfinite(probabilities).all():
         raise ValueError("probability_positive must be a finite one-dimensional array in [0, 1]")
+    # clamp tiny floating-point overshoots (e.g. 1+1e-15 from tree leaf proportions)
+    if np.any((probabilities < -1e-9) | (probabilities > 1 + 1e-9)):
+        raise ValueError("probability_positive must be a finite one-dimensional array in [0, 1]")
+    probabilities = np.clip(probabilities, 0.0, 1.0)
     threshold = cost_sensitive_threshold(false_positive_cost, false_negative_cost)
     
     return (probabilities >= threshold).astype(int)
