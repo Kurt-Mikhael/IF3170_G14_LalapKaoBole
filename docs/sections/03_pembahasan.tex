@@ -4,15 +4,6 @@
 
 \section{Pembahasan Metodologi}
 
-\subsection{Eksplorasi Data (EDA)}
-
-Eksplorasi dimulai dengan memeriksa tipe data, kelengkapan nilai, duplikasi, dan nilai yang tidak valid. Data latih dan data uji diperiksa secara terpisah. Keduanya memiliki nilai hilang pada delapan fitur yang sama. Jumlah nilai hilang paling banyak terdapat pada \texttt{num\_children}, yaitu 3.035 pada data latih dan 747 pada data uji. Temuan ini menjadi dasar untuk menentukan penanganan nilai hilang sebelum pelatihan.
-
-Distribusi target hanya dapat diperiksa pada data latih. Dari 27.373 pemesanan, 18.404 tidak dibatalkan (67,23\%) dan 8.969 dibatalkan (32,77\%). Karena jumlah pemesanan di kedua kelas berbeda, skor F1 makro digunakan agar kinerja pada masing-masing kelas mendapat bobot yang sama.
-
-Eksplorasi juga mencakup sebaran fitur numerik, frekuensi kategori, hubungan antarfitur, dan pola berdasarkan waktu kedatangan. Untuk fitur seperti jeda pemesanan, tarif per malam, dan kanal pemesanan, sebaran pada data latih dapat dibandingkan menurut status pembatalan. Perbandingan ini menunjukkan asosiasi, bukan sebab pembatalan.
-
-% ----------------------------------------------------------
 \subsection{Data Cleaning}
 
 \subsubsection{Penanganan Nilai Hilang}

@@ -5,22 +5,116 @@
 \section{Pendahuluan}
 
 \subsection{Latar Belakang}
-% TODO: Jelaskan konteks dan motivasi pemilihan topik.
+Pengelolaan pemesanan merupakan salah satu aspek penting dalam bisnis
+penginapan. Salah satu tantangan yang sering dihadapi adalah pembatalan
+pemesanan oleh tamu. Pembatalan dapat memengaruhi tingkat hunian dan pendapatan
+penginapan, terutama ketika kamar yang telah dipesan tidak berhasil ditawarkan
+kembali kepada tamu lain. Oleh karena itu, kemampuan untuk memperkirakan
+kemungkinan pembatalan dapat membantu pengelola dalam merencanakan ketersediaan
+kamar dan mengambil keputusan operasional yang lebih baik.
+
+Perkembangan teknologi pembelajaran mesin (\textit{machine learning})
+memungkinkan prediksi dilakukan berdasarkan pola yang ditemukan dalam data
+historis. Dalam konteks pemesanan penginapan, informasi seperti waktu pemesanan,
+lama menginap, harga kamar, dan riwayat pemesanan tamu dapat digunakan untuk
+mempelajari faktor-faktor yang berkaitan dengan pembatalan. Melalui pendekatan
+\textit{supervised learning}, model dapat dilatih untuk mengenali pola tersebut
+dan memperkirakan apakah suatu pemesanan akan dibatalkan.
+
+Dalam tugas besar ini, permasalahan prediksi pembatalan pemesanan digunakan
+sebagai studi kasus untuk menerapkan berbagai algoritma klasifikasi. Selain
+menghasilkan prediksi, tugas ini juga berfokus pada pemahaman cara kerja
+algoritma, proses pengolahan data, serta evaluasi dan perbandingan kinerja model
+yang dihasilkan.
 
 \subsection{Rumusan Persoalan dan Tujuan}
-% TODO: Rumuskan persoalan klasifikasi dan tujuan tugas besar.
+
+Persoalan yang dibahas dalam tugas besar ini adalah bagaimana memprediksi status
+pembatalan suatu pemesanan berdasarkan informasi yang tersedia pada dataset.
+Permasalahan tersebut termasuk dalam \textit{binary classification} atau
+klasifikasi biner, yaitu mengelompokkan setiap pemesanan ke dalam dua kelas:
+dibatalkan atau tidak dibatalkan.
+
+Tujuan tugas besar ini adalah mengimplementasikan lima algoritma pembelajaran
+mesin dari awal (\textit{from scratch}), yaitu K-Nearest Neighbors (KNN),
+\textit{Decision Tree Learning} (DTL), \textit{Logistic Regression},
+\textit{Support Vector Machine} (SVM),
+dan \textit{Naive Bayesian Network}. Hasil implementasi kemudian dibandingkan
+dengan algoritma sejenis yang tersedia pada pustaka \texttt{scikit-learn} untuk
+mengevaluasi kinerja masing-masing pendekatan.
+
+Evaluasi model menggunakan \textit{Macro F1-score} sebagai metrik utama sesuai
+dengan ketentuan kompetisi. Metrik ini memperhitungkan kinerja prediksi pada
+kedua kelas secara seimbang sehingga dapat memberikan gambaran yang lebih
+menyeluruh mengenai kemampuan model dalam mengklasifikasikan pembatalan
+pemesanan.
 
 \subsection{Deskripsi Dataset}
 
 \subsubsection{Sumber dan Struktur Dataset}
-% TODO: Sebutkan sumber dataset (Kaggle, dsb.), jumlah baris/kolom, format file.
+Data kompetisi Kaggle memuat catatan pemesanan dari satu penginapan, dengan satu
+pemesanan per baris. Berkas \texttt{train.csv} memuat 27.373 pemesanan dalam 19
+kolom, termasuk label pembatalan. Berkas \texttt{test.csv} memuat 6.844
+pemesanan dalam 18 kolom tanpa label pembatalan. Berkas
+\texttt{sample\_submission.csv} menunjukkan format pengiriman prediksi: dua
+kolom, yaitu \texttt{id} dan \texttt{is\_canceled}, dengan satu baris untuk
+setiap \texttt{id} pada data uji.
 
 \subsubsection{Atribut dan Tipe Data}
-% TODO: Tabel atribut — nama kolom, tipe data, deskripsi singkat.
+Setiap pemesanan memiliki pengenal unik berupa teks. Atribut lainnya menjelaskan
+tamu, rencana menginap, kanal pemesanan, tarif, dan riwayat pemesanan tamu.
+Tabel~\ref{tab:atribut-pemesanan} merangkum tipe dan arti setiap kolom selain
+target.
+
+\begin{table}[htbp]
+    \centering
+    \caption{Atribut pemesanan selain variabel target}
+    \label{tab:atribut-pemesanan}
+    \small
+    \begin{tabularx}{\textwidth}{@{}p{0.31\textwidth}lX@{}}
+        \toprule
+        \textbf{Kolom} & \textbf{Tipe} & \textbf{Keterangan} \\
+        \midrule
+        \texttt{id} & Teks & Pengenal unik pemesanan, bukan besaran numerik. \\
+        \texttt{num\_adults}, \texttt{num\_children} & Bilangan bulat & Jumlah tamu dewasa dan anak. \\
+        \texttt{weekend\_nights}, \texttt{weekday\_nights} & Bilangan bulat & Jumlah malam yang dipesan pada akhir pekan dan hari kerja. \\
+        \texttt{meal\_package}, \texttt{room\_category}, \texttt{booking\_channel} & Kategorikal & Paket makan, kategori kamar, dan kanal pemesanan. Kategori kamar tidak memiliki urutan. \\
+        \texttt{needs\_parking}, \texttt{is\_returning\_guest} & Biner & Kebutuhan parkir dan status pernah menginap. \\
+        \texttt{days\_before\_arrival} & Bilangan bulat & Jeda antara pemesanan dan kedatangan dalam hari. \\
+        \texttt{arrival\_year}, \texttt{arrival\_month}, \texttt{arrival\_day} & Bilangan bulat & Tahun, bulan, dan tanggal kedatangan. \\
+        \texttt{prior\_cancellations}, \texttt{prior\_completed\_bookings} & Bilangan bulat & Jumlah pemesanan terdahulu yang dibatalkan dan yang tidak dibatalkan. \\
+        \texttt{nightly\_rate\_idr} & Bilangan bulat & Tarif rata-rata per kamar per malam dalam rupiah. \\
+        \texttt{special\_requests} & Bilangan bulat & Jumlah permintaan khusus tamu. \\
+        \bottomrule
+    \end{tabularx}
+\end{table}
 
 \subsubsection{Variabel Target}
-% TODO: Jelaskan kolom target, distribusi kelas (canceled vs.\ not canceled).
+Kolom \texttt{is\_canceled} menyatakan hasil akhir pemesanan: nilai 1 berarti
+dibatalkan dan nilai 0 berarti tidak dibatalkan. Label hanya tersedia pada data
+latih kompetisi, sehingga penilaian kinerja yang memerlukan label dilakukan pada
+bagian validasi yang diambil dari data latih. Untuk setiap pemesanan dalam data
+uji, model menghasilkan salah satu dari kedua label tersebut.
 
 \subsection{Batasan Persoalan}
-% TODO: Sebutkan asumsi dan batasan yang digunakan dalam pengerjaan.
+\begin{enumerate}
+    \item \textbf{Cakupan data.} Kajian hanya menggunakan catatan pemesanan yang
+        disediakan kompetisi untuk satu penginapan. Hasil evaluasi tidak cukup
+        untuk menyimpulkan bahwa model akan mencapai kinerja yang sama pada
+        penginapan lain atau pada periode yang tidak tercakup dalam data.
+    \item \textbf{Pemisahan data.} Data latih dan data uji kompetisi tidak
+        digabungkan untuk prapemrosesan. Parameter prapemrosesan yang perlu
+        dipelajari ditentukan dari bagian pelatihan, lalu diterapkan pada bagian
+        validasi atau data uji. Data uji kompetisi tidak digunakan untuk melatih
+        model.
+    \item \textbf{Cakupan prediksi.} Model memprediksi status pembatalan, bukan
+        kapan atau mengapa pembatalan terjadi. Hubungan antara suatu atribut dan
+        hasil prediksi tidak membuktikan bahwa atribut tersebut menyebabkan
+        pembatalan.
+    \item \textbf{Cakupan evaluasi.} Skor F1 makro mengukur kinerja klasifikasi,
+        bukan dampak finansial dari kesalahan prediksi. Skor tersebut tidak
+        menjadi dasar langsung untuk menetapkan kebijakan pembatalan atau
+        menentukan berapa banyak pemesanan yang boleh diterima melebihi
+        kapasitas.
+\end{enumerate}
 
