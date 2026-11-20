@@ -15,6 +15,7 @@ class KNNClassifier:
 
         self.n_neighbors = int(n_neighbors)
         self.weights = weights
+        self.batch_size = 512  
         self._X_train: np.ndarray | None = None
         self._y_encoded: np.ndarray | None = None
         self.classes_: np.ndarray | None = None
@@ -57,6 +58,17 @@ class KNNClassifier:
         if self._X_train is None or self._y_encoded is None or self.classes_ is None:
             raise RuntimeError("KNNClassifier has not been fitted")
 
+    @staticmethod
+    def _k_smallest(values: np.ndarray, k: int) -> np.ndarray:
+        # indeks k nilai terkecil per baris, terurut dari terkecil; jika seri, indeks terkecil didahulukan
+        # (hasilnya sama dengan argsort stable, tetapi tanpa mengurutkan seluruh data training)
+        kth = np.partition(values, k - 1, axis=1)[:, k - 1]
+        result = np.empty((len(values), k), dtype=int)
+        for row, (row_values, limit) in enumerate(zip(values, kth)):
+            candidates = np.flatnonzero(row_values <= limit)
+            result[row] = candidates[np.argsort(row_values[candidates], kind="stable")[:k]]
+        return result
+
     def _neighbor_indices_and_distances(self, X: Any) -> tuple[np.ndarray, np.ndarray]:
         self._check_is_fitted()
         X_array = self._as_2d_features(X)
@@ -67,12 +79,22 @@ class KNNClassifier:
                 f"{self._X_train.shape[1]}"
             )
 
-        # hitung jarak euclidean
-        squared_distances = np.sum((X_array[:, None, :] - self._X_train[None, :, :]) ** 2, axis=2)
-        distances = np.sqrt(np.maximum(squared_distances, 0.0))
-        nearest = np.argsort(distances, axis=1, kind="stable")[:, : self.n_neighbors]
+        # hitung jarak euclidean per batch agar matriks jarak tidak memenuhi memori
+        # ||a - b||^2 = ||a||^2 + ||b||^2 - 2 a.b dipakai untuk mengurutkan tetangga,
+        # lalu jarak k tetangga terpilih dihitung ulang secara langsung agar presisi
+        batch_size = getattr(self, "batch_size", 512)
+        train_norms = np.sum(self._X_train ** 2, axis=1)
+        nearest = np.empty((len(X_array), self.n_neighbors), dtype=int)
+        distances = np.empty((len(X_array), self.n_neighbors), dtype=float)
+        for start in range(0, len(X_array), batch_size):
+            batch = X_array[start : start + batch_size]
+            squared = np.sum(batch ** 2, axis=1)[:, None] + train_norms[None, :] - 2 * batch @ self._X_train.T
+            order = self._k_smallest(squared, self.n_neighbors)
+            diff = batch[:, None, :] - self._X_train[order]
+            nearest[start : start + len(batch)] = order
+            distances[start : start + len(batch)] = np.sqrt(np.sum(diff ** 2, axis=2))
 
-        return nearest, np.take_along_axis(distances, nearest, axis=1)
+        return nearest, distances
 
     def predict_proba(self, X: Any) -> np.ndarray:
         # menghitung probabilitas tiap kelas berdasarkan nearest neighbor
