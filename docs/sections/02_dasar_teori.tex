@@ -1,44 +1,211 @@
-% ============================================================
-%  Bab 2 – Dasar Teori
-% ============================================================
-
 \section{Dasar Teori}
 
 \subsection{Supervised Learning}
-% TODO: Definisi, paradigma, hubungan dengan klasifikasi.
+\textit{Supervised learning} merupakan pendekatan pembelajaran mesin yang menggunakan data berlabel sebagai dasar pelatihan model. Data tersebut terdiri atas pasangan masukan $\mathbf{x}$ dan label $y$. Tujuan pembelajaran adalah memperoleh hipotesis $h$ yang mampu mendekati fungsi target $f:\mathbf{x}\rightarrow y$, sehingga model dapat memprediksi label pada data baru dengan baik. Model yang terlalu menyesuaikan diri terhadap data latih disebut mengalami \textit{overfitting}, sedangkan model yang belum mampu menangkap pola data secara memadai disebut mengalami \textit{underfitting} \cite{ref:materi-07}.
 
-\subsection{Klasifikasi}
-% TODO: Pengertian umum klasifikasi biner vs.\ multiclass.
+Berdasarkan jenis label yang diprediksi, \textit{supervised learning} dibagi menjadi dua tugas utama, yaitu klasifikasi dan regresi. Klasifikasi bertujuan memprediksi label yang berasal dari sejumlah kelas tertentu, sedangkan regresi bertujuan memprediksi nilai kontinu \cite{ref:materi-07}. Pada tugas ini, permasalahan yang dihadapi merupakan klasifikasi biner, yaitu memprediksi apakah suatu pemesanan dibatalkan atau tidak. Model klasifikasi dapat menghasilkan prediksi kelas secara langsung maupun probabilitas suatu data termasuk ke dalam kelas tertentu, yaitu $P(y\mid\mathbf{x})$. Apabila model menghasilkan probabilitas, nilai tersebut dapat dikonversi menjadi label menggunakan suatu \textit{threshold}.
 
 \subsection{K-Nearest Neighbors}
-% TODO: Deskripsi algoritma, perhitungan jarak, pemilihan k.
+K-Nearest Neighbors (KNN) merupakan algoritma \textit{supervised learning} yang bersifat non-parametrik dan termasuk dalam kategori \textit{lazy learner}. Pada tahap pelatihan, KNN tidak membangun model secara eksplisit, melainkan menyimpan data latih untuk digunakan ketika proses prediksi berlangsung. Prediksi dilakukan dengan mencari $k$ data latih yang memiliki jarak terdekat dengan data yang akan diklasifikasikan, kemudian menentukan kelas berdasarkan mayoritas kelas dari tetangga tersebut.
+
+Jarak antara data dapat dihitung menggunakan metrik seperti Euclidean atau Manhattan untuk atribut numerik. Sementara itu, atribut simbolik dapat dibandingkan menggunakan fungsi ketidakcocokan yang memberikan nilai $0$ apabila kedua atribut sama dan $1$ apabila berbeda. Pemilihan nilai $k$ dan metrik jarak dapat dilakukan secara empiris menggunakan data validasi. Selain itu, penskalaan fitur perlu diperhatikan karena perhitungan KNN bergantung pada jarak antar data, sehingga fitur dengan rentang nilai yang lebih besar dapat memberikan pengaruh lebih dominan \cite{ref:materi-10b}.
 
 \subsection{Decision Tree Learning}
+\textit{Decision tree} merupakan algoritma \textit{supervised learning} yang membentuk struktur pohon melalui proses pemisahan data secara bertahap. Proses pembangunan pohon dilakukan dari atas ke bawah (\textit{top-down}) dengan pendekatan \textit{greedy}, yaitu memilih atribut terbaik pada setiap tahap tanpa mengevaluasi seluruh kemungkinan struktur pohon. Pemisahan dilakukan hingga data pada suatu simpul cukup homogen atau memenuhi kriteria penghentian tertentu. Simpul internal merepresentasikan pengujian atribut, sedangkan simpul daun menunjukkan hasil klasifikasi \cite{ref:materi-10a}. Beberapa algoritma \textit{decision tree} menggunakan kriteria yang berbeda dalam menentukan atribut pemisah, di antaranya ID3, C4.5, dan CART.
 
 \subsubsection{Iterative Dichotomiser 3 (ID3)}
-% TODO: Kriteria information gain, entropy.
+ID3 memilih atribut yang menghasilkan \textit{information gain} terbesar untuk memisahkan data. \textit{Information gain} mengukur penurunan entropi setelah data dibagi berdasarkan suatu atribut. Entropi dan \textit{information gain} dihitung menggunakan rumus berikut.
+
+\[
+\mathrm{Entropy}(S)=-\sum_i p_i\log_2 p_i
+\]
+
+\[
+\mathrm{Gain}(S,A)=\mathrm{Entropy}(S)
+-\sum_{v}\frac{|S_v|}{|S|}\mathrm{Entropy}(S_v)
+\]
+
+ID3 pada dasarnya digunakan untuk atribut kategorikal. Namun, algoritma ini cenderung memilih atribut yang memiliki banyak nilai berbeda karena atribut tersebut dapat menghasilkan partisi yang lebih kecil dan entropi yang rendah \cite{ref:materi-10a}.
 
 \subsubsection{C4.5}
-% TODO: Gain ratio, penanganan nilai kontinu dan hilang.
+C4.5 merupakan pengembangan dari ID3 yang menggunakan \textit{gain ratio} sebagai kriteria pemilihan atribut. \textit{Gain ratio} diperoleh dengan membagi \textit{information gain} dengan \textit{split information}, sehingga dapat mengurangi kecenderungan pemilihan atribut yang memiliki banyak nilai berbeda.
+
+C4.5 juga mendukung atribut numerik dengan menentukan nilai ambang pemisah berdasarkan nilai atribut yang telah diurutkan. Selain itu, algoritma ini dapat menangani nilai yang hilang dengan memperhitungkan distribusi data ke berbagai cabang serta melakukan \textit{pruning} untuk mengurangi kompleksitas pohon dan risiko \textit{overfitting} \cite{ref:materi-10c, ref:quinlan-1993}.
 
 \subsubsection{Classification and Regression Tree (CART)}
-% TODO: Gini impurity, pruning.
+CART membangun pohon keputusan biner dengan memilih pemisahan yang menghasilkan nilai impuritas terkecil. Untuk klasifikasi, CART menggunakan \textit{Gini impurity} yang dirumuskan sebagai berikut.
+
+\[
+\mathrm{Gini}(S)=1-\sum_i p_i^2
+\]
+
+Nilai Gini dihitung untuk setiap kandidat pemisahan, kemudian dipilih pemisahan dengan nilai Gini berbobot paling rendah. CART juga menerapkan \textit{pruning} menggunakan pendekatan \textit{cost-complexity} untuk mengendalikan kompleksitas pohon, dengan rumus berikut.
+
+\[
+R_{\alpha}(T)=R(T)+\alpha|T|
+\]
+
+Pada rumus tersebut, $R(T)$ menyatakan kesalahan pohon, $|T|$ menyatakan jumlah daun, dan $\alpha$ merupakan parameter yang mengatur penalti terhadap kompleksitas pohon. Semakin besar nilai $\alpha$, semakin besar penalti terhadap pohon yang kompleks \cite{ref:breiman-1984}.
 
 \subsection{Logistic Regression}
+\textit{Logistic regression} merupakan model klasifikasi yang menggunakan kombinasi linear dari fitur sebagai dasar prediksi. Pada klasifikasi biner, nilai linear tersebut diubah menjadi probabilitas menggunakan fungsi sigmoid. Model kemudian menentukan kelas berdasarkan probabilitas yang dihasilkan dan suatu \textit{threshold}. Secara umum, model dirumuskan sebagai berikut.
+
+\[
+z=\mathbf{w}^{T}\mathbf{x}+b
+\]
+
+\[
+p=\sigma(z)=\frac{1}{1+e^{-z}}
+\]
+
+Dengan \textit{threshold} sebesar $0{,}5$, data diprediksi sebagai kelas positif apabila $p\geq 0{,}5$.
+
+Parameter model diestimasi dengan pendekatan \textit{maximum likelihood}, yang ekuivalen dengan meminimalkan fungsi \textit{log-loss}. Fungsi tersebut dirumuskan sebagai berikut.
+
+\[
+J(\mathbf{w},b)=
+-\frac{1}{n}\sum_{i=1}^{n}
+\left[
+y_i\ln p_i+(1-y_i)\ln(1-p_i)
+\right]
+\]
+
+Optimasi parameter dapat dilakukan menggunakan \textit{gradient descent}, yaitu memperbarui parameter secara iteratif berdasarkan gradien fungsi kerugian \cite{ref:materi-11}. Untuk mengurangi risiko \textit{overfitting}, regularisasi dapat ditambahkan ke fungsi kerugian dengan memberikan penalti terhadap besar bobot model. Kekuatan penalti diatur menggunakan parameter $\lambda$ \cite{ref:hastie-2009}.
 
 \subsubsection{Regularisasi L1}
+Regularisasi L1 menambahkan penalti berupa jumlah nilai absolut bobot ke fungsi kerugian, dengan rumus sebagai berikut.
+
+\[
+\Omega(\mathbf{w})=\lambda\lVert\mathbf{w}\rVert_1
+\]
+
+Regularisasi ini dapat mendorong sebagian bobot menjadi nol, sehingga dapat membantu mengurangi jumlah fitur yang berkontribusi terhadap model.
+
 \subsubsection{Regularisasi L2}
+Regularisasi L2 memberikan penalti berdasarkan jumlah kuadrat bobot, dengan rumus sebagai berikut.
+
+\[
+\Omega(\mathbf{w})=\frac{\lambda}{2}\lVert\mathbf{w}\rVert_2^2
+\]
+
+Penalti ini mendorong bobot menjadi lebih kecil tanpa secara langsung membuatnya bernilai nol, sehingga dapat membantu mengurangi pengaruh fitur yang terlalu dominan.
+
 \subsubsection{Elastic Net}
+Elastic Net menggabungkan regularisasi L1 dan L2 dalam satu fungsi penalti, dengan rumus sebagai berikut.
+
+\[
+\Omega(\mathbf{w})=
+\lambda\left[
+\rho\lVert\mathbf{w}\rVert_1+
+\frac{1-\rho}{2}\lVert\mathbf{w}\rVert_2^2
+\right]
+\]
+
+Parameter $\rho\in[0,1]$ mengatur proporsi regularisasi L1 dan L2. Dengan demikian, Elastic Net menggabungkan kemampuan L1 dalam menghasilkan bobot nol dengan kemampuan L2 dalam mengendalikan besar bobot model.
 
 \subsection{Support Vector Machine}
+Support Vector Machine (SVM) merupakan algoritma klasifikasi yang mencari hiperbidang pemisah dengan margin terbesar antara kelas-kelas data. Data yang berada paling dekat dengan hiperbidang dan berperan dalam menentukan posisi batas pemisah disebut \textit{support vector}. Untuk data yang tidak dapat dipisahkan secara sempurna, SVM menggunakan pendekatan \textit{soft margin} dengan variabel \textit{slack} $\xi_i$ untuk mengakomodasi pelanggaran terhadap margin.
+
+Dengan label $y_i\in\{-1,+1\}$ dan parameter $C$ yang mengatur keseimbangan antara lebar margin dan kesalahan klasifikasi, optimasi SVM dirumuskan sebagai berikut.
+
+\[
+\begin{aligned}
+\min_{\mathbf{w},b,\boldsymbol{\xi}}\quad
+&\frac{1}{2}\lVert\mathbf{w}\rVert^2+C\sum_i\xi_i\\
+\text{s.t.}\quad
+&y_i(\mathbf{w}^{T}\mathbf{x}_i+b)\geq 1-\xi_i,\\
+&\xi_i\geq 0.
+\end{aligned}
+\]
+
+Untuk menangani data yang tidak dapat dipisahkan secara linear, SVM dapat menggunakan fungsi kernel untuk menghitung kemiripan antar data tanpa harus memetakan data secara eksplisit ke ruang fitur berdimensi lebih tinggi. Pendekatan ini dikenal sebagai \textit{kernel trick}. Fungsi keputusan SVM dalam bentuk kernel dirumuskan sebagai berikut.
+
+\[
+f(\mathbf{x})=
+\sum_i\alpha_i y_i K(\mathbf{x}_i,\mathbf{x})+b
+\]
+
+Optimasi SVM dapat diselesaikan melalui bentuk dual yang merupakan masalah \textit{quadratic programming}. Salah satu metode yang digunakan untuk menyelesaikannya adalah \textit{Sequential Minimal Optimization} (SMO) \cite{ref:materi-12, ref:platt-1998}.
 
 \subsubsection{Kernel Linear}
+Kernel linear menggunakan hasil kali dalam antara dua vektor fitur, dengan rumus berikut.
+
+\[
+K(\mathbf{x},\mathbf{z})=\mathbf{x}^{T}\mathbf{z}
+\]
+
+Kernel ini menghasilkan batas pemisah linear pada ruang fitur asli dan sesuai digunakan ketika data dapat dipisahkan dengan batas linear atau ketika hubungan linear sudah cukup mewakili pola data.
+
 \subsubsection{Kernel Polinomial}
+Kernel polinomial memungkinkan SVM memodelkan hubungan non-linear melalui interaksi antarfitur hingga derajat tertentu, dengan rumus berikut.
+
+\[
+K(\mathbf{x},\mathbf{z})=
+(\gamma\mathbf{x}^{T}\mathbf{z}+c_0)^d
+\]
+
+Parameter $d$ menentukan derajat polinomial, sedangkan $\gamma$ dan $c_0$ mengatur skala serta pergeseran fungsi kernel.
+
 \subsubsection{Kernel Gaussian (RBF)}
+Kernel Gaussian atau \textit{Radial Basis Function} (RBF) menghitung kemiripan berdasarkan jarak antara dua vektor fitur, dengan rumus berikut.
+
+\[
+K(\mathbf{x},\mathbf{z})=
+\exp\left(-\gamma\lVert\mathbf{x}-\mathbf{z}\rVert^2\right)
+\]
+
+Parameter $\gamma$ mengatur seberapa jauh pengaruh suatu data terhadap data lainnya. Nilai $\gamma$ yang besar menghasilkan pengaruh yang lebih lokal dan batas pemisah yang lebih fleksibel, sehingga dapat meningkatkan risiko \textit{overfitting} apabila tidak dipilih dengan tepat.
 
 \subsection{Bayesian Network (Naive Bayes)}
-% TODO: Teorema Bayes, asumsi conditional independence, Laplace smoothing.
+\textit{Naive Bayes} merupakan algoritma klasifikasi probabilistik yang didasarkan pada teorema Bayes dengan asumsi bahwa setiap fitur bersifat independen secara kondisional terhadap kelas. Dalam representasi \textit{Bayesian network}, kelas menjadi induk dari seluruh fitur, sehingga hubungan ketergantungan antarfitur tidak dimodelkan secara langsung.
+
+Prediksi kelas dilakukan dengan memilih kelas yang memiliki probabilitas posterior terbesar, sebagaimana dirumuskan berikut.
+
+\[
+\hat{c}=
+\operatorname*{arg\,max}_{c}
+P(c)\prod_{j=1}^{d}P(x_j\mid c)
+\]
+
+Untuk fitur kategorikal, probabilitas dihitung berdasarkan frekuensi kemunculan fitur pada masing-masing kelas. \textit{Laplace smoothing} digunakan untuk menghindari probabilitas nol pada nilai yang tidak ditemukan dalam data latih, dengan rumus berikut.
+
+\[
+P(x_j=v\mid c)=
+\frac{n_{c,j,v}+\alpha}
+{n_c+\alpha|V_j|}
+\]
+
+Pada rumus tersebut, $n_{c,j,v}$ menyatakan jumlah data kelas $c$ yang memiliki nilai $v$ pada fitur ke-$j$, $n_c$ menyatakan jumlah data pada kelas $c$, $|V_j|$ menyatakan banyaknya nilai yang mungkin pada fitur ke-$j$, dan $\alpha$ merupakan parameter smoothing.
+
+Untuk fitur numerik, Naive Bayes dapat menggunakan distribusi Gaussian dalam memperkirakan probabilitas fitur pada setiap kelas. Perhitungan probabilitas biasanya dilakukan dalam bentuk logaritma untuk menghindari masalah \textit{underflow} akibat perkalian probabilitas yang sangat kecil \cite{ref:manning-2008}.
 
 \subsection{Validasi dan Metrik Evaluasi}
-% TODO: Train-test split, k-fold CV, accuracy, precision, recall, F1, ROC-AUC.
+Evaluasi model dilakukan menggunakan data yang tidak digunakan dalam proses pelatihan untuk mengukur kemampuan model dalam memprediksi data baru. Salah satu metode yang dapat digunakan adalah \textit{hold-out} atau \textit{train-test split}, yaitu membagi data menjadi data latih dan data uji. Selain itu, \textit{k-fold cross-validation} membagi data menjadi $k$ partisi yang digunakan secara bergantian sebagai data validasi, sementara partisi lainnya digunakan untuk pelatihan \cite{ref:materi-13}.
 
+Kinerja model klasifikasi dapat dievaluasi menggunakan metrik yang diperoleh dari \textit{confusion matrix}, yaitu \textit{true positive} (TP), \textit{false positive} (FP), \textit{true negative} (TN), dan \textit{false negative} (FN). Beberapa metrik yang digunakan adalah \textit{precision}, \textit{recall}, dan $F_1$-score, dengan rumus sebagai berikut.
+
+\[
+\mathrm{Precision}=\frac{TP}{TP+FP}
+\]
+
+\[
+\mathrm{Recall}=\frac{TP}{TP+FN}
+\]
+
+\[
+F_1=
+\frac{2\cdot\mathrm{Precision}\cdot\mathrm{Recall}}
+{\mathrm{Precision}+\mathrm{Recall}}
+\]
+
+\textit{Macro F1} merupakan rata-rata nilai $F_1$ dari seluruh kelas dengan bobot yang sama, sehingga setiap kelas memiliki kontribusi setara terhadap nilai evaluasi, terlepas dari jumlah datanya. Metrik ini digunakan sebagai metrik utama kompetisi karena dapat memberikan gambaran kinerja model pada kedua kelas, termasuk ketika distribusi kelas tidak seimbang. Selain itu, \textit{ROC-AUC} digunakan untuk mengukur kemampuan model dalam membedakan kedua kelas melalui luas area di bawah kurva yang menggambarkan hubungan antara \textit{true positive rate} (TPR) dan \textit{false positive rate} (FPR) pada berbagai nilai \textit{threshold} \cite{ref:materi-13}.
+
+\subsubsection{\textit{Cost-Sensitive Classification}}
+Pada klasifikasi sensitif biaya, pemilihan \textit{threshold} mempertimbangkan perbedaan biaya yang ditimbulkan oleh kesalahan prediksi. Apabila biaya \textit{false positive} lebih besar daripada biaya \textit{false negative}, yaitu masing-masing sebesar $C_{FP}$ dan $C_{FN}$, prediksi kelas positif dilakukan apabila probabilitas kelas positif memenuhi kondisi berikut.
+
+\[
+p\geq\theta^{*}=
+\frac{C_{FP}}{C_{FP}+C_{FN}}
+\]
+
+Dengan demikian, nilai \textit{threshold} tidak harus sebesar $0{,}5$, melainkan dapat disesuaikan dengan perbandingan biaya kesalahan klasifikasi. Sebagai contoh, apabila biaya \textit{false positive} dua kali lebih besar daripada biaya \textit{false negative}, maka nilai \textit{threshold} optimal berdasarkan biaya tersebut adalah $\theta^{*}=2/3$ \cite{ref:elkan-2001}.
