@@ -104,16 +104,16 @@ class LogisticRegressionClassifier:
         ratio = {"l1": 1.0, "l2": 0.0, "elasticnet": self.l1_ratio}[self.penalty]
         return self.reg_strength * ratio, self.reg_strength * (1 - ratio)
 
-    def _loss_gradient(self, X, y, w, b):
+    def _log_likelihood_gradient(self, X, y, w, b):
         l1, l2 = self._regularization()
         z = X @ w + b
-        loss = np.mean(np.logaddexp(0, (1 - 2 * y) * z))
-        loss += l1 * np.abs(w).sum() + 0.5 * l2 * (w @ w)
-        residual = self._sigmoid(z) - y
+        objective = -np.mean(np.logaddexp(0, (1 - 2 * y) * z))
+        objective -= l1 * np.abs(w).sum() + 0.5 * l2 * (w @ w)
+        residual = y - self._sigmoid(z)
         # Penalti hanya untuk bobot; L1 memakai subgradien.
-        dw = X.T @ residual / len(y) + l1 * np.sign(w) + l2 * w
+        dw = X.T @ residual / len(y) - l1 * np.sign(w) - l2 * w
         db = residual.mean()
-        return float(loss), dw, float(db)
+        return float(objective), dw, float(db)
 
     def fit(self, X, y):
         self._clear_fitted()
@@ -130,7 +130,7 @@ class LogisticRegressionClassifier:
         encoded = encoded.astype(float)
         rng = np.random.default_rng(self.random_state)
         try:
-            w, b, iterations, converged = self._fit_gradient_descent(X, encoded, rng)
+            w, b, iterations, converged = self._fit_gradient_ascent(X, encoded, rng)
         except Exception:
             self._clear_fitted()
             raise
@@ -145,9 +145,10 @@ class LogisticRegressionClassifier:
             warnings.warn("Logistic regression stopped before convergence", RuntimeWarning)
         return self
 
-    def _fit_gradient_descent(self, X, y, rng):
+    def _fit_gradient_ascent(self, X, y, rng):
         w, b = np.zeros(X.shape[1]), 0.0
-        self.loss_history_ = [self._loss_gradient(X, y, w, b)[0]]
+        # Loss tetap negative log-likelihood + penalti untuk kompatibilitas grafik.
+        self.loss_history_ = [-self._log_likelihood_gradient(X, y, w, b)[0]]
         self.parameter_history_ = [(w.copy(), b)] if self.record_history else []
         stable_epochs = 0
         size = len(X) if self.batch_size is None else min(self.batch_size, len(X))
@@ -156,13 +157,13 @@ class LogisticRegressionClassifier:
             for start in range(0, len(X), size):
                 batch = slice(None) if indices is None else indices[start:start + size]
                 with np.errstate(over="ignore", invalid="ignore"):
-                    _, dw, db = self._loss_gradient(X[batch], y[batch], w, b)
-                    w -= self.learning_rate * dw
-                    b -= self.learning_rate * db
+                    _, dw, db = self._log_likelihood_gradient(X[batch], y[batch], w, b)
+                    w += self.learning_rate * dw
+                    b += self.learning_rate * db
                 if not np.isfinite(w).all() or not np.isfinite(b):
                     raise FloatingPointError("Nonfinite parameters; scale features or reduce learning_rate")
             with np.errstate(over="ignore", invalid="ignore"):
-                loss = self._loss_gradient(X, y, w, b)[0]
+                loss = -self._log_likelihood_gradient(X, y, w, b)[0]
             if not np.isfinite(loss):
                 raise FloatingPointError("Nonfinite objective; scale features or reduce learning_rate")
             previous_loss = self.loss_history_[-1]
