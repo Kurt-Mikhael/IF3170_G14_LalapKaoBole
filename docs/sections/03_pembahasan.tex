@@ -1112,4 +1112,18 @@ pertama lalu mendatar karena gradiennya mengecil di dekat minimum.
 \label{fig:logvideo}
 \end{figure}
 % TODO: Bonus SVM (gambar bidang pemisah, margin, dan support vector).
-% TODO: Bonus Bayesian Network / Naive Bayes (gambar graf antarfitur).
+\subsubsection{Visualisasi Graf Bayesian Network (Naive Bayes)}
+
+Fungsi \texttt{plot\_naive\_bayes\_graph} pada \texttt{src/models/naive\_bayes/visualization.py} menggambar graf yang menampilkan hubungan antara variabel kelas dan fitur, menggunakan Matplotlib. Kelas digambar sebagai simpul di tengah dengan panah ke setiap fitur, sesuai struktur Naive Bayes. Tebal panah menyatakan informasi bersama (\textit{mutual information}) antara fitur dan kelas \cite{ref:cover-2006}.
+
+\[
+I(X;C)=\sum_{x,c}P(x,c)\log_2\frac{P(x,c)}{P(x)P(c)}
+\]
+
+Untuk menunjukkan hubungan antarfitur, graf juga menggambar garis putus-putus pada pasangan fitur yang masih saling bergantung setelah kelas diketahui, diukur dengan \textit{conditional mutual information}.
+
+\[
+I(A;B\mid C)=\sum_{a,b,c}P(a,b,c)\log_2\frac{P(c)\,P(a,b,c)}{P(a,c)\,P(b,c)}
+\]
+
+Garis ini bukan bagian dari model, melainkan petunjuk letak asumsi independensi dilanggar. Penaksiran dari frekuensi cenderung terlalu besar untuk fitur yang memiliki banyak nilai, sehingga setiap nilai dikurangi koreksi bias Miller--Madow \cite{ref:miller-1955}, yaitu $(|X|-1)(|C|-1)/(2n\ln 2)$ untuk $I(X;C)$ dan $(|A|-1)(|B|-1)|C|/(2n\ln 2)$ untuk $I(A;B\mid C)$, dengan batas bawah nol. Hasil graf dibahas pada bagian Hasil Bayesian Network (Naive Bayes).

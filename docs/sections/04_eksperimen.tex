@@ -156,7 +156,120 @@ Gambar~\ref{fig:logreg}.
 % TODO: Tabel metrik, pengaruh kernel dan C.
 
 \subsubsection{Bayesian Network (Naive Bayes)}
-% TODO: Tabel metrik, distribusi probabilitas kelas.
+\paragraph{Rancangan}
+Pemilihan konfigurasi Naive Bayes memakai lipatan pertama dari \textit{StratifiedGroupKFold} dengan 5 lipatan, \textit{seed} 42, dan baris yang identik dikelompokkan agar tidak bocor ke data validasi. Lipatan ini sama dengan yang dipakai model lain, terdiri atas 21.897 baris latih dan 5.476 baris validasi dengan proporsi pembatalan 0,328 pada keduanya. Seluruh pilihan (representasi fitur kontinu, jumlah \textit{bin}, dan $\alpha$) ditentukan dari data validasi, bukan dari data uji. Kolom F1 pada tabel di bawah adalah F1 untuk kelas batal.
+
+\paragraph{Representasi fitur kontinu}
+Tabel~\ref{tab:nb-kontinu} membandingkan distribusi Gaussian dengan \textit{binning} untuk empat fitur kontinu, dengan $\alpha=1$.
+
+\begin{table}[H]
+    \centering
+    \small
+    \renewcommand{\arraystretch}{1.15}
+    \begin{tabular}{@{}lccccc@{}}
+        \toprule
+        \textbf{Representasi} & \textbf{Accuracy} & \textbf{Precision} & \textbf{Recall} & \textbf{F1} & \textbf{ROC-AUC} \\
+        \midrule
+        Gaussian, nilai asli    & 0,512 & 0,399 & 0,970 & 0,566 & 0,822 \\
+        Gaussian, $\log(1+x)$   & 0,489 & 0,388 & 0,971 & 0,555 & 0,796 \\
+        \textit{Binning} 5      & 0,783 & 0,689 & 0,614 & 0,649 & 0,830 \\
+        \textit{Binning} 10     & 0,779 & 0,683 & 0,609 & 0,644 & 0,830 \\
+        \textit{Binning} 20     & 0,781 & 0,686 & 0,611 & 0,647 & 0,832 \\
+        \bottomrule
+    \end{tabular}
+    \caption{Representasi fitur kontinu pada data validasi}
+    \label{tab:nb-kontinu}
+\end{table}
+
+Gaussian menghasilkan \textit{recall} 0,97 dengan akurasi sekitar 0,5, artinya hampir semua pemesanan diprediksi batal. \textit{Binning} jauh lebih baik, dengan akurasi sekitar 0,78. Selisih antara 5, 10, dan 20 \textit{bin} kecil, dan 20 \textit{bin} memiliki ROC-AUC tertinggi sehingga dipilih. Untuk mengetahui fitur yang menjadi penyebab, Gaussian dipasang pada satu fitur kontinu sekali waktu sementara tiga fitur lain tetap di-\textit{binning}, seperti pada Tabel~\ref{tab:nb-gaussian-fitur}.
+
+\begin{table}[H]
+    \centering
+    \small
+    \renewcommand{\arraystretch}{1.15}
+    \begin{tabular}{@{}lccccc@{}}
+        \toprule
+        \textbf{Fitur yang Gaussian} & \textbf{Accuracy} & \textbf{Precision} & \textbf{Recall} & \textbf{F1} & \textbf{ROC-AUC} \\
+        \midrule
+        \texttt{days\_before\_arrival}      & 0,779 & 0,708 & 0,557 & 0,623 & 0,822 \\
+        \texttt{nightly\_rate\_idr}         & 0,786 & 0,698 & 0,610 & 0,651 & 0,832 \\
+        \texttt{prior\_completed\_bookings} & 0,517 & 0,402 & 0,969 & 0,568 & 0,832 \\
+        \texttt{arrival\_day}               & 0,782 & 0,687 & 0,612 & 0,647 & 0,833 \\
+        \midrule
+        Semua fitur di-\textit{binning}     & 0,781 & 0,686 & 0,611 & 0,647 & 0,832 \\
+        \bottomrule
+    \end{tabular}
+    \caption{Gaussian pada satu fitur kontinu dengan fitur lain di-\textit{binning}}
+    \label{tab:nb-gaussian-fitur}
+\end{table}
+
+Kegagalan Gaussian berasal dari \texttt{prior\_completed\_bookings}. Hampir semua nilainya nol sehingga varians per kelas sangat kecil, dan nilai bukan nol kemungkinan menghasilkan \textit{likelihood} yang ekstrem dan mendorong prediksi ke kelas batal. ROC-AUC fitur ini tetap 0,832, jadi urutan peluangnya tidak rusak, hanya ambang 0,5 yang menjadi tidak sesuai. \texttt{days\_before\_arrival} sedikit lebih buruk dengan Gaussian, sedangkan \texttt{nightly\_rate\_idr} sedikit lebih baik (F1 0,651 dibanding 0,647) dan \texttt{arrival\_day} tidak berpengaruh. Asumsi distribusi normal tidak cocok untuk fitur yang sangat miring, sedangkan \textit{binning} tidak membutuhkan asumsi bentuk distribusi, sehingga seluruh fitur kontinu di-\textit{binning} dengan 20 \textit{bin}.
+
+\paragraph{Pengaruh $\alpha$}
+Tabel~\ref{tab:nb-alpha} menunjukkan hasil beberapa nilai $\alpha$ pada konfigurasi \textit{binning} 20.
+
+\begin{table}[H]
+    \centering
+    \small
+    \renewcommand{\arraystretch}{1.15}
+    \begin{tabular}{@{}rccc@{}}
+        \toprule
+        $\alpha$ & \textbf{Accuracy} & \textbf{F1} & \textbf{ROC-AUC} \\
+        \midrule
+        0     & 0,7818 & 0,6478 & 0,8332 \\
+        0,01  & 0,7818 & 0,6478 & 0,8332 \\
+        0,1   & 0,7818 & 0,6478 & 0,8330 \\
+        0,5   & 0,7812 & 0,6470 & 0,8327 \\
+        1     & 0,7812 & 0,6468 & 0,8324 \\
+        2     & 0,7812 & 0,6468 & 0,8321 \\
+        5     & 0,7820 & 0,6474 & 0,8315 \\
+        10    & 0,7818 & 0,6434 & 0,8308 \\
+        \bottomrule
+    \end{tabular}
+    \caption{Pengaruh $\alpha$ pada data validasi}
+    \label{tab:nb-alpha}
+\end{table}
+
+Pengaruh $\alpha$ sangat kecil karena data latih memiliki 21.897 baris sehingga hitungan nyata jauh lebih besar daripada hitungan tambahan. Nilai $\alpha=2$ dipakai: ROC-AUC-nya hanya sekitar 0,001 di bawah yang terbaik dan \textit{smoothing} yang lebih kuat lebih aman untuk nilai yang jarang muncul. $\alpha=0$ tidak dipakai walaupun sedikit lebih tinggi, karena tanpa \textit{smoothing} satu nilai yang belum pernah terlihat pada suatu kelas membuat skor kelas itu menjadi nol. Karena $\alpha$ dan jumlah \textit{bin} dipilih dari data validasi yang sama, angka pada tabel ini sedikit optimistis.
+
+\paragraph{Perbandingan dengan scikit-learn}
+Implementasi sendiri dibandingkan dengan \texttt{CategoricalNB} dan \texttt{GaussianNB} pada masukan yang identik. Karena scikit-learn tidak menerima NaN, untuk perbandingan ini nilai kosong diisi lebih dulu dengan modus, dan \texttt{GaussianNB} memakai \texttt{var\_smoothing} nol agar rumusnya sama. Selisih terbesar antara \texttt{predict\_proba} keduanya hanya sekitar $3{,}6\times10^{-15}$ untuk kategorikal dan $2{,}1\times10^{-13}$ untuk Gaussian, sehingga kedua implementasi menghasilkan metrik yang sama persis (Tabel~\ref{tab:nb-sklearn}). Perbedaan yang tersisa hanya pada penanganan NaN, yang tidak didukung scikit-learn, dan pada \texttt{var\_smoothing}: scikit-learn menambahkan varians terbesar dari semua fitur, sedangkan implementasi ini memakai varians tiap kolom.
+
+\begin{table}[H]
+    \centering
+    \small
+    \renewcommand{\arraystretch}{1.15}
+    \begin{tabular}{@{}lccccc@{}}
+        \toprule
+        \textbf{Model} & \textbf{Accuracy} & \textbf{Precision} & \textbf{Recall} & \textbf{F1} & \textbf{ROC-AUC} \\
+        \midrule
+        \texttt{CategoricalNB} (scikit-learn) & 0,785 & 0,691 & 0,618 & 0,653 & 0,831 \\
+        Implementasi sendiri, kategorikal     & 0,785 & 0,691 & 0,618 & 0,653 & 0,831 \\
+        \texttt{GaussianNB} (scikit-learn)    & 0,419 & 0,357 & 0,969 & 0,522 & 0,729 \\
+        Implementasi sendiri, Gaussian        & 0,419 & 0,357 & 0,969 & 0,522 & 0,729 \\
+        \bottomrule
+    \end{tabular}
+    \caption{Perbandingan dengan scikit-learn pada data validasi}
+    \label{tab:nb-sklearn}
+\end{table}
+
+\paragraph{Hasil validasi silang}
+Konfigurasi akhir (\textit{binning} 20, $\alpha=2$) dievaluasi dengan 5-\textit{fold} \textit{cross-validation} dan hasilnya sudah dimuat pada Tabel~\ref{tab:cv}. Naive Bayes mendapatkan F1 \textit{macro} 0,744 $\pm$ 0,006, akurasi 0,781, \textit{precision} 0,687, dan \textit{recall} 0,610. Pada \textit{leaderboard} publik Kaggle, konfigurasi Naive Bayes dengan $\alpha=1$ mendapatkan F1 \textit{macro} 0,75871. Skor tersebut dihitung dari sekitar 30\% data uji, sehingga dapat berbeda beberapa poin dari validasi silang.
+
+\paragraph{Graf hubungan fitur dan kelas}
+Gambar~\ref{fig:nb-graf} menunjukkan graf Naive Bayes yang dihitung dari data latih.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.85\textwidth]{../output/naive_bayes_graph.png}
+    \caption{Graf Naive Bayes: panah abu-abu dari kelas ke fitur (tebal menunjukkan $I(X;C)$) dan garis merah putus-putus untuk delapan pasangan fitur yang paling bergantung setelah kelas diketahui ($I(A;B\mid C)$)}
+    \label{fig:nb-graf}
+\end{figure}
+
+Informasi terbesar tentang pembatalan berasal dari \texttt{days\_before\_arrival} (0,152 bit), disusul \texttt{special\_requests} (0,056 bit) dan \texttt{arrival\_month} (0,036 bit). Fitur seperti \texttt{prior\_completed\_bookings}, \texttt{num\_children}, dan \texttt{room\_category} hampir tidak berkaitan dengan kelas. Di sisi lain, banyak pasangan fitur yang masih saling bergantung kuat setelah kelas diketahui, misalnya \texttt{room\_category} dengan \texttt{nightly\_rate\_idr} (0,23 bit), \texttt{arrival\_month} dengan \texttt{days\_before\_arrival} (0,19 bit), \texttt{booking\_channel} dengan \texttt{nightly\_rate\_idr} (0,18 bit), dan \texttt{weekend\_nights} dengan \texttt{weekday\_nights} (0,16 bit). Naive Bayes mengalikan pasangan seperti ini seolah-olah independen sehingga bukti yang sama terhitung lebih dari sekali.
+
+\paragraph{Analisis}
+Naive Bayes berada di posisi terakhir pada Tabel~\ref{tab:cv}, dengan F1 \textit{macro} sekitar 0,09 di bawah KNN dan C4.5. Selisih ini jauh lebih besar daripada variasi antar lipatan. Graf di atas memberikan penjelasan yang masuk akal: banyak fitur saling bergantung setelah kelas diketahui, padahal model mengasumsikannya independen, sedangkan KNN dan C4.5 dapat menangkap interaksi antarfitur. Hubungan antara dugaan ini dan selisih skor tidak diuji langsung, misalnya dengan model yang memodelkan ketergantungan antarfitur. \textit{Precision} Naive Bayes adalah yang terendah (0,687), artinya model paling sering salah memprediksi batal. Di sisi lain, Naive Bayes sangat cepat dilatih (sekitar 0,04 detik), dapat menangani nilai kosong tanpa imputasi, dan menghasilkan peluang yang mudah dijelaskan dari frekuensi.
 
 \subsubsection{Perbandingan Antarmodel}
 
