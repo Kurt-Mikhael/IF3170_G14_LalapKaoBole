@@ -21,12 +21,12 @@ class LogisticRegressionTests(unittest.TestCase):
         for penalty in (None, 'l1', 'l2', 'elasticnet'):
             model = LogisticRegressionClassifier(penalty=penalty, reg_strength=.3)
             theta = np.array([.4, -.2, .1])  # L1 evaluated away from zero.
-            loss = lambda t: model._loss_gradient(self.X, self.y, t[:2], t[2])[0]
-            _, dw, db = model._loss_gradient(self.X, self.y, theta[:2], theta[2])
+            objective = lambda t: model._log_likelihood_gradient(self.X, self.y, t[:2], t[2])[0]
+            _, dw, db = model._log_likelihood_gradient(self.X, self.y, theta[:2], theta[2])
             numerical = []
             for i in range(3):
                 delta = np.eye(3)[i] * 1e-6
-                numerical.append((loss(theta + delta) - loss(theta - delta)) / 2e-6)
+                numerical.append((objective(theta + delta) - objective(theta - delta)) / 2e-6)
             np.testing.assert_allclose(np.r_[dw, db], numerical, atol=1e-8)
 
     def test_learns_labels_probabilities_and_regularization(self):
@@ -43,11 +43,22 @@ class LogisticRegressionTests(unittest.TestCase):
     def test_stability_at_extreme_logits(self):
         model = LogisticRegressionClassifier()
         X = np.array([[-1000.], [1000.]])
-        loss, dw, db = model._loss_gradient(X, np.array([0., 1.]), np.ones(1), 0.)
-        self.assertTrue(np.isfinite(loss))
+        objective, dw, db = model._log_likelihood_gradient(X, np.array([0., 1.]), np.ones(1), 0.)
+        self.assertTrue(np.isfinite(objective))
         self.assertTrue(np.isfinite(dw).all())
         self.assertTrue(np.isfinite(db))
         np.testing.assert_allclose(model._sigmoid(np.array([-1000., 1000.])), [0., 1.])
+
+    def test_stochastic_ascent_matches_lecture_example(self):
+        X = np.array([[52., 41.], [62., 58.]])
+        y = np.array([0, 1])
+        with self.assertWarns(RuntimeWarning):
+            model = LogisticRegressionClassifier(
+                learning_rate=.1, max_iter=1, batch_size=1, random_state=42,
+            ).fit(X, y)
+        np.testing.assert_allclose(model.coef_, [[-2.1, -1.2]])
+        np.testing.assert_allclose(model.intercept_, [-.05])
+        np.testing.assert_array_equal(model.predict(X), [0, 0])
 
     def test_stochastic_reproducibility_and_persistence(self):
         kwargs = dict(penalty='l2', batch_size=1, max_iter=30, record_history=True)
@@ -110,7 +121,7 @@ class LogisticRegressionTests(unittest.TestCase):
 
     def test_failed_optimization_clears_fitted_state(self):
         model = LogisticRegressionClassifier(penalty='l2').fit(self.X, self.y)
-        with patch.object(model, '_loss_gradient', side_effect=FloatingPointError):
+        with patch.object(model, '_log_likelihood_gradient', side_effect=FloatingPointError):
             with self.assertRaises(FloatingPointError):
                 model.fit(self.X, self.y)
         for name in ('coef_', 'classes_', 'fit_status_', 'loss_history_'):
