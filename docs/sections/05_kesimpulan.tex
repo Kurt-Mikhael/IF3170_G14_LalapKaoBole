@@ -1,19 +1,56 @@
-% ============================================================
-%  Bagian 5 – Kesimpulan dan Saran
-% ============================================================
-
 \clearpage
 \section{Kesimpulan dan Saran}
 
 \subsection{Kesimpulan}
-% TODO: Rangkum temuan utama:
-%   - Algoritma mana yang paling baik untuk dataset ini dan mengapa.
-%   - Dampak preprocessing terhadap performa model.
-%   - Perbandingan implementasi sendiri vs.\ pustaka.
+
+Pada Tugas Besar 2 IF3170 Inteligensi Artifisial, tim berhasil membangun \textit{pipeline} lengkap untuk
+memprediksi pembatalan pemesanan penginapan, mulai dari analisis data,
+\textit{preprocessing}, pelatihan, hingga evaluasi. Lima algoritma, yaitu KNN,
+\textit{Decision Tree Learning} (C4.5), \textit{Logistic Regression}, SVM, dan
+\textit{Naive Bayes}, diimplementasikan dari awal menggunakan NumPy dan
+dibandingkan dengan scikit-learn. Analisis data menunjukkan bahwa sekitar 33\% pemesanan
+dibatalkan dan sekitar 39\% baris memiliki nilai kosong. Oleh karena itu
+\textit{preprocessing} disesuaikan dengan kebutuhan tiap algoritma, dan
+pembagian data memakai StratifiedGroupKFold agar baris yang identik
+tidak berada pada data latih dan validasi sekaligus. Hasil implementasi sendiri
+sesuai dengan scikit-learn. KNN dan \textit{Naive Bayes} menghasilkan
+probabilitas yang hampir identik, dan selisih metrik \textit{Logistic Regression}
+kurang dari 0,002. C4.5 berbeda karena algoritma pembandingnya adalah CART,
+tetapi hasilnya tetap sebanding.
+
+Berdasarkan \textit{5-fold cross-validation}, KNN (F1 macro 0,832) dan C4.5
+(0,830) memberikan performa terbaik dengan selisih yang lebih kecil daripada
+variasi antar-\textit{fold}, sehingga keduanya dapat dianggap setara.
+Keduanya unggul karena mampu menangkap pola nonlinear dan interaksi antarfitur,
+sedangkan \textit{Logistic Regression} (0,759), SVM berkernel linear (0,754),
+dan \textit{Naive Bayes} (0,744) hanya membentuk batas yang lebih sederhana atau
+mengasumsikan fitur saling bebas. Seluruh model berada jauh di atas
+\textit{baseline} 0,675, tetapi \textit{recall} kelas batal baru mencapai 0,60
+sampai 0,74. Pada bonus, penggeseran \textit{threshold} menjadi 0,667 untuk
+\textit{cost-sensitive classification} menurunkan total biaya pada semua model,
+dengan biaya terendah dicapai KNN (5.093). Visualisasi pohon, video lintasan
+parameter \textit{Logistic Regression}, dan graf \textit{Naive Bayes} juga
+berhasil dibuat untuk membantu menjelaskan perilaku model.
 
 \subsection{Saran}
-% TODO: Rekomendasi untuk pengembangan lanjut:
-%   - Eksplorasi model ensemble (Random Forest, Gradient Boosting).
-%   - Hyperparameter tuning yang lebih ekstensif.
-%   - Teknik feature engineering tambahan.
 
+Untuk pengembangan lebih lanjut, disarankan mencoba model \textit{ensemble}
+seperti \textit{Random Forest} atau \textit{gradient boosting} yang menggabungkan
+kelebihan pohon keputusan, serta melakukan \textit{hyperparameter tuning} yang
+lebih ekstensif. Rekayasa fitur tambahan, misalnya fitur interaksi untuk model
+linear, juga berpotensi meningkatkan \textit{Logistic Regression} dan SVM.
+Karena \textit{recall} kelas batal masih rendah, pemilihan \textit{threshold}
+yang dioptimalkan langsung terhadap \textit{Macro F1} atau terhadap biaya
+dapat dicoba. Pada \textit{Naive Bayes}, model yang memodelkan ketergantungan
+antarfitur, seperti yang ditunjukkan graf pada bagian hasil, dapat diuji untuk
+memastikan penyebab skornya yang lebih rendah.
+
+Dari sisi implementasi, SVM masih dilatih pada 1.000 baris karena matriks
+kernel penuh membutuhkan memori $O(n^2)$ sehingga perlu teknik seperti
+\textit{kernel cache} dan \textit{shrinking} agar dapat memakai seluruh data.
+Implementasi \textit{Logistic Regression} dengan \textit{Elastic Net} juga jauh
+lebih lambat daripada scikit-learn sehingga dapat dipercepat dengan
+laju belajar adaptif atau \textit{solver} yang lebih efisien. Terakhir, laporan
+ini belum memuat skor \textit{leaderboard} Kaggle untuk seluruh model, sehingga
+pengujian pada data uji perlu dilengkapi untuk memastikan hasil validasi dapat
+digeneralisasi.
