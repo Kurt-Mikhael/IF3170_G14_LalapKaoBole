@@ -684,7 +684,116 @@ $2/3$ pada bonus \textit{cost-sensitive}.
 
 \subsubsection{Implementasi Bayesian Network (Naive Bayes)}
 
-% TODO: Estimasi prior dan likelihood, Laplace smoothing, beserta source code.
+\paragraph{Kelas \texttt{NaiveBayesClassifier}}
+Kelas ini berada pada \texttt{src/models/naive\_bayes/naive\_bayes.py} dan dibuat dari awal hanya dengan modul \texttt{math} dan NumPy. Struktur modelnya berupa \textit{Bayesian network} berbentuk bintang: variabel kelas menjadi induk dari semua fitur, sehingga model cukup menyimpan $P(c)$ dan $P(x_j\mid c)$ untuk setiap fitur. Antarmukanya sama dengan kelas model lain di repositori, yaitu \texttt{fit}, \texttt{predict\_proba}, \texttt{predict}, \texttt{save}, dan \texttt{load}. Parameter dan atribut utamanya dirangkum pada Tabel~\ref{tab:nb-atribut}.
+
+\begin{table}[H]
+    \centering
+    \small
+    \renewcommand{\arraystretch}{1.2}
+    \begin{tabularx}{\textwidth}{@{}lX@{}}
+        \toprule
+        \textbf{Nama} & \textbf{Keterangan} \\
+        \midrule
+        \texttt{alpha} & Hitungan tambahan pada \textit{Laplace smoothing}, nilai awal 1. \\
+        \texttt{var\_smoothing} & Pecahan dari varians kolom yang ditambahkan pada varians Gaussian agar tidak nol. \\
+        \texttt{feature\_types} & Daftar \texttt{"categorical"} atau \texttt{"gaussian"} untuk tiap kolom; jika kosong, semua kolom kategorikal. \\
+        \texttt{classes\_} & Label kelas yang terurut. \\
+        \texttt{class\_log\_prior\_} & $\log P(c)$ untuk setiap kelas. \\
+        \texttt{feature\_params\_} & Parameter tiap fitur: tabel $\log P(x_j\mid c)$ atau rata-rata dan varians per kelas. \\
+        \bottomrule
+    \end{tabularx}
+    \caption{Parameter dan atribut kelas \texttt{NaiveBayesClassifier}}
+    \label{tab:nb-atribut}
+\end{table}
+
+\paragraph{Pelatihan}
+Pelatihan hanya menghitung frekuensi. Prior dihitung sebagai $P(c)=n_c/n$ dan disimpan dalam bentuk logaritma. Untuk fitur kategorikal, model menyimpan tabel per kelas dengan rumus berikut.
+
+\[
+\log P(x_j=v\mid c)=
+\log\left(n_{c,j,v}+\alpha\right)-
+\log\left(n_{c,j}+\alpha|V_j|\right)
+\]
+
+Himpunan $V_j$ adalah nilai yang muncul pada kolom $j$ di data latih, dan $n_{c,j}$ hanya menghitung baris yang nilainya tidak kosong, sehingga nilai kosong (NaN) tidak ikut dihitung. Nilai yang tidak pernah terlihat pada suatu kelas, atau tidak ada di data latih, memakai $\alpha/(n_{c,j}+\alpha|V_j|)$. Dengan $\alpha>0$, tidak ada peluang yang bernilai nol \cite{ref:manning-2008}. Untuk fitur Gaussian, model menyimpan rata-rata dan varians per kelas. Varians ditambah $\varepsilon=\texttt{var\_smoothing}\times\mathrm{Var}(x_j)$ dengan batas bawah $10^{-12}$ agar tidak pernah nol.
+
+\paragraph{Prediksi}
+Skor setiap kelas dihitung dalam ruang logaritma sehingga perkalian banyak peluang kecil tidak menyebabkan \textit{underflow}.
+
+\[
+s_c=\log P(c)+\sum_{j:\,x_j\ \text{tidak kosong}}\log P(x_j\mid c)
+\]
+
+Fitur yang bernilai NaN dilewati, yang setara dengan menghilangkan fitur itu dari perhitungan (marginalisasi), sehingga tidak diperlukan imputasi. Skor diubah menjadi peluang posterior dengan mengurangkan skor terbesar sebelum eksponensial.
+
+\[
+P(c\mid\mathbf{x})=
+\frac{\exp\left(s_c-\max_k s_k\right)}
+{\sum_{k}\exp\left(s_k-\max_{k'} s_{k'}\right)}
+\]
+
+Metode \texttt{predict\_proba} mengembalikan peluang ini, dan \texttt{predict} memilih kelas dengan peluang terbesar. Jika semua kelas bernilai nol (hanya dapat terjadi ketika $\alpha=0$), model memakai prior. Cuplikan~\ref{lst:nb-fit} dan Cuplikan~\ref{lst:nb-predict} memperlihatkan bagian utama kedua langkah ini.
+
+\begin{lstlisting}[caption={Estimasi tabel peluang fitur kategorikal}, label={lst:nb-fit}]
+def _fit_categorical(self, column, y):
+    not_missing = ~np.isnan(column)
+    values = sorted(set(column[not_missing]))
+    n_values = len(values)
+
+    log_prob = []
+    log_unseen = []
+    for c in self.classes_:
+        in_class = column[(y == c) & not_missing]
+        denominator = len(in_class) + self.alpha * n_values
+
+        table = {}
+        for v in values:
+            count = np.sum(in_class == v)
+            if denominator == 0:
+                table[v] = 0.0
+            else:
+                table[v] = self._log(count + self.alpha) - math.log(denominator)
+        log_prob.append(table)
+
+        if denominator == 0:
+            log_unseen.append(0.0)
+        else:
+            log_unseen.append(self._log(self.alpha) - math.log(denominator))
+
+    return {"kind": "categorical", "log_prob": log_prob, "log_unseen": log_unseen}
+\end{lstlisting}
+
+\begin{lstlisting}[caption={Skor logaritma dan peluang posterior}, label={lst:nb-predict}]
+def _log_scores(self, X):
+    ...
+    all_scores = []
+    for row in X:
+        scores = list(self.class_log_prior_)
+        for j in range(len(row)):
+            value = row[j]
+            if np.isnan(value):
+                continue
+            for k in range(len(self.classes_)):
+                scores[k] += self._log_likelihood(self.feature_params_[j], k, value)
+        all_scores.append(scores)
+    return all_scores
+
+def predict_proba(self, X):
+    probabilities = []
+    for scores in self._log_scores(X):
+        best = max(scores)
+        if best == -math.inf:
+            probabilities.append([math.exp(p) for p in self.class_log_prior_])
+            continue
+        exps = [math.exp(s - best) for s in scores]
+        total = sum(exps)
+        probabilities.append([e / total for e in exps])
+    return np.array(probabilities)
+\end{lstlisting}
+
+\paragraph{Kompleksitas}
+Dengan $n$ baris, $d$ fitur, dan $k$ kelas, pelatihan membutuhkan satu kali pemindaian data per nilai fitur kategorikal, yaitu $O\left(n\sum_j|V_j|\right)$ untuk fitur kategorikal dan $O(nd)$ untuk fitur Gaussian. Memori yang dibutuhkan hanya $O\left(k\sum_j|V_j|\right)$ untuk tabel peluang. Prediksi $m$ baris membutuhkan $O(mdk)$ karena setiap fitur hanya dicari di tabel peluang tiap kelas. Pada data ini, pelatihan memakan waktu sekitar 0,04 detik.
 
 \subsubsection{Implementasi Pembanding dengan scikit-learn}
 
