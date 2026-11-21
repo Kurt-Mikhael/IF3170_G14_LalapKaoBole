@@ -866,7 +866,142 @@ Fungsi ini menghitung jumlah \textit{false positive}, jumlah \textit{false
 negative}, dan total biaya $2\times FP+1\times FN$. Hasilnya dipakai untuk
 membandingkan prediksi dengan \textit{threshold} $0{,}5$ dan $0{,}667$.
 
-% TODO: Bonus Logistic Regression (video kontur loss dan lintasan parameter).
+\subsubsection{Video Kontur Loss dan Lintasan Parameter Logistic Regression}
+
+Bonus ini membuat video yang memperlihatkan bagaimana \textit{gradient ascent}
+menggeser parameter pada kontur \textit{log-loss}. Kontur dua dimensi hanya
+dapat digambar jika model memiliki dua parameter, sehingga video memakai model
+demonstrasi terpisah dengan satu fitur, yaitu \texttt{days\_before\_arrival}
+yang sudah diimputasi dan distandardisasi. Parameternya hanya $\theta_0$ (bias)
+dan $\theta_1$ (bobot). Model ini dilatih tanpa regularisasi dengan
+\textit{full-batch gradient ascent}, $\eta=0{,}1$, dan
+\texttt{record\_history=True} agar posisi parameter pada tiap \textit{epoch}
+tersimpan di \texttt{parameter\_history\_}. Implementasinya berada pada
+\texttt{src/models/logreg/visualization.py} dan video tersimpan pada
+\texttt{output/logreg\_training.mp4}.
+
+\begin{lstlisting}
+def _log_loss_at(parameters, x, y, counts):
+    losses = np.empty(len(parameters))
+    for start in range(0, len(parameters), 64):
+        theta = parameters[start:start + 64]
+        scores = theta[:, :1] + theta[:, 1:] * x[None, :]
+        losses[start:start + 64] = (
+            np.logaddexp(0, (1 - 2 * y)[None, :] * scores) @ counts
+        ) / counts.sum()
+    return losses
+\end{lstlisting}
+
+Fungsi ini menghitung rata-rata \textit{log-loss} untuk banyak pasangan
+$(\theta_0,\theta_1)$ sekaligus, baik titik pada lintasan maupun titik pada
+\textit{grid} kontur. Perhitungan dilakukan per 64 pasangan agar memori
+terjaga. Parameter \texttt{counts} adalah jumlah kemunculan tiap pasangan
+(fitur, label) yang identik. Penggabungan ini tidak mengubah nilai \textit{loss}
+tetapi membuat perhitungan pada \textit{grid} jauh lebih cepat.
+
+\begin{lstlisting}
+trajectory = np.array([[b, w[0]] for w, b in model.parameter_history_])
+pairs, counts = np.unique(
+    np.column_stack((X[:, 0], (y == model.classes_[1]).astype(float))),
+    axis=0, return_counts=True,
+)
+x, encoded = pairs.T
+losses = _log_loss_at(trajectory, x, encoded, counts)
+if not np.allclose(losses, model.loss_history_, rtol=1e-7, atol=1e-9):
+    raise ValueError("Supply the same X/y used to train the recorded model")
+\end{lstlisting}
+
+Bagian awal \texttt{create\_logreg\_training\_animation} ini mengubah riwayat
+parameter menjadi lintasan $(\theta_0,\theta_1)$ per \textit{epoch}, lalu
+menghitung \textit{loss} tiap titik lintasan. Hasilnya dibandingkan dengan
+\texttt{loss\_history\_} yang dicatat model saat pelatihan. Jika berbeda, fungsi
+berhenti karena data yang diberikan bukan data yang dipakai melatih model
+sehingga kontur tidak akan sesuai dengan lintasannya. Fungsi ini juga menolak
+model dengan lebih dari satu fitur atau dengan penalti, karena kontur yang
+digambar hanya mewakili \textit{log-loss} tanpa penalti.
+
+\begin{lstlisting}
+low, high = trajectory.min(axis=0), trajectory.max(axis=0)
+padding = np.maximum((high - low) * .2, .35)
+theta0 = np.linspace(low[0] - padding[0], high[0] + padding[0], grid_size)
+theta1 = np.linspace(low[1] - padding[1], high[1] + padding[1], grid_size)
+theta0_grid, theta1_grid = np.meshgrid(theta0, theta1)
+grid = np.column_stack((theta0_grid.ravel(), theta1_grid.ravel()))
+surface = _log_loss_at(grid, x, encoded, counts).reshape(theta0_grid.shape)
+\end{lstlisting}
+
+Bagian ini membentuk permukaan \textit{loss} yang digambar sebagai kontur.
+Rentang sumbu diambil dari lintasan ditambah ruang tepi 20\%, lalu
+\textit{grid} $80\times 80$ titik dievaluasi dengan \texttt{\_log\_loss\_at}.
+Kontur terisi dan garis kontur berlabel digambar dari \texttt{surface} pada
+panel kiri, sedangkan panel kanan menyiapkan grafik \textit{loss} terhadap
+\textit{epoch}.
+
+\begin{lstlisting}
+def update(epoch):
+    path_line.set_data(trajectory[:epoch + 1, 0], trajectory[:epoch + 1, 1])
+    current.set_data([trajectory[epoch, 0]], [trajectory[epoch, 1]])
+    loss_line.set_data(epochs[:epoch + 1], losses[:epoch + 1])
+    loss_point.set_data([epoch], [losses[epoch]])
+    status.set_text(
+        f"Epoch {epoch}/{epochs[-1]}\n"
+        f"theta_0 = {trajectory[epoch, 0]:.4f}\n"
+        f"theta_1 = {trajectory[epoch, 1]:.4f}\n"
+        f"Log-loss = {losses[epoch]:.6f}"
+    )
+    return path_line, current, loss_line, loss_point, status
+
+frames = np.concatenate((np.zeros(fps, dtype=int), epochs, np.full(2 * fps, epochs[-1])))
+return FuncAnimation(fig, update, frames=frames, interval=1000 / fps,
+                     init_func=lambda: update(0), repeat=False)
+\end{lstlisting}
+
+Fungsi \texttt{update} dipanggil untuk tiap \textit{frame}. Fungsi ini
+memperpanjang garis lintasan sampai \textit{epoch} saat ini, memindahkan titik
+oranye ke posisi parameter terkini, menambah kurva \textit{loss}, dan menulis
+nilai $\theta_0$, $\theta_1$, serta \textit{loss}. Urutan \textit{frame}
+menahan keadaan awal selama satu detik dan keadaan akhir selama dua detik agar
+video mudah diamati.
+
+\begin{lstlisting}
+def save_logreg_training_video(model, X, y, path, *, feature_name="standardized feature",
+                               grid_size=80, fps=20, dpi=100):
+    ffmpeg = _ffmpeg_executable()
+    with mpl.rc_context({"animation.ffmpeg_path": ffmpeg}):
+        video = create_logreg_training_animation(model, X, y, feature_name=feature_name,
+                                                 grid_size=grid_size, fps=fps)
+        try:
+            writer = FFMpegWriter(fps=fps, codec="libx264",
+                                  extra_args=["-pix_fmt", "yuv420p", "-movflags", "+faststart"])
+            video.save(str(path), writer=writer, dpi=dpi)
+        finally:
+            plt.close(video._fig)
+    return path
+\end{lstlisting}
+
+Fungsi ini mengekspor animasi menjadi berkas MP4 dengan \textit{codec} H.264.
+Fungsi \texttt{\_ffmpeg\_executable} mencari FFmpeg pada \texttt{PATH} atau pada
+paket \texttt{imageio-ffmpeg}, dan akan menampilkan galat berisi petunjuk
+pemasangan jika keduanya tidak ada. Format \texttt{yuv420p} dan opsi
+\texttt{faststart} dipakai agar video dapat diputar di banyak pemutar.
+
+Pada demonstrasi ini pelatihan berhenti pada \textit{epoch} ke-264 karena sudah
+konvergen sebelum batas 300 \textit{epoch}. Seperti terlihat pada
+Gambar~\ref{fig:logvideo}, lintasan bergerak dari titik awal $(0,0)$ langsung
+menuju minimum di sekitar $\theta_0\approx-0{,}79$ dan $\theta_1\approx 0{,}97$,
+dengan \textit{log-loss} turun dari $0{,}693$ menjadi $0{,}539$. Lintasan
+memotong garis kontur hampir tegak lurus karena gradien mengarah ke penurunan
+\textit{loss} paling curam. Tanda $\theta_1$ positif menunjukkan bahwa makin
+jauh hari pemesanan dibuat, makin besar peluang batal, sesuai temuan pada
+analisis data. Kurva \textit{loss} turun cepat pada sekitar 50 \textit{epoch}
+pertama lalu mendatar karena gradiennya mengecil di dekat minimum.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=\textwidth]{../output/logreg_training_frame.png}
+\caption{Kontur \textit{log-loss} dan lintasan parameter pada \textit{frame} akhir video}
+\label{fig:logvideo}
+\end{figure}
 % TODO: Bonus SVM (gambar bidang pemisah, margin, dan support vector).
 % TODO: Bonus Bayesian Network / Naive Bayes (gambar graf antarfitur).
 
