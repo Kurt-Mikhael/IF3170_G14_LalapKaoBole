@@ -9,11 +9,28 @@ import nbformat
 import numpy as np
 
 ROOT = Path(__file__).resolve().parents[1]
-NOTEBOOK = ROOT / "src/notebooks/v1.ipynb"
+NOTEBOOK = ROOT / "src/notebooks/main.ipynb"
+SVM_SECTION_START = "## Persiapan Data dan Baseline SVM"
+SVM_SECTION_END = "## Logistic Regression"
 
 
 def _notebook():
-    return json.loads(NOTEBOOK.read_text())
+    return json.loads(NOTEBOOK.read_text(encoding="utf-8"))
+
+
+def _svm_section(notebook):
+    # Bagian SVM dicari lewat judulnya agar tes tidak bergantung pada nomor sel
+    cells = notebook["cells"]
+
+    def find(prefix):
+        hits = [
+            i for i, cell in enumerate(cells)
+            if cell["cell_type"] == "markdown" and "".join(cell["source"]).startswith(prefix)
+        ]
+        assert len(hits) == 1, prefix
+        return hits[0]
+
+    return cells[find(SVM_SECTION_START):find(SVM_SECTION_END)]
 
 
 def _execute_prep():
@@ -93,15 +110,14 @@ class SvmNotebookTests(unittest.TestCase):
                 compile("".join(cell["source"]), f"cell-{cell.get('id', '')}", "exec")
 
     def test_new_cells_have_empty_outputs_and_imports_stay_in_library(self):
-        for index, cell in enumerate(_notebook()["cells"]):
+        for cell in _svm_section(_notebook()):
             if cell["cell_type"] != "code":
                 continue
             tree = ast.parse("".join(cell["source"]))
-            if index >= 33:
-                self.assertEqual(cell["outputs"], [])
-                self.assertIsNone(cell["execution_count"])
-                self.assertFalse(any(isinstance(node, (ast.Import, ast.ImportFrom))
-                                     for node in ast.walk(tree)))
+            self.assertEqual(cell["outputs"], [])
+            self.assertIsNone(cell["execution_count"])
+            self.assertFalse(any(isinstance(node, (ast.Import, ast.ImportFrom))
+                                 for node in ast.walk(tree)))
 
     def test_bounded_workflow_shared_parameters_plots_and_round_trip(self):
         notebook, ns = _execute_prep()
@@ -113,9 +129,11 @@ class SvmNotebookTests(unittest.TestCase):
         ns["svm_valid_indices"] = ns["svm_valid_indices"][:50]
         with tempfile.TemporaryDirectory() as directory:
             ns["OUTPUT_DIR"] = Path(directory)
-            for cell in notebook["cells"][36:]:
-                if cell["cell_type"] == "code":
-                    exec("".join(cell["source"]), ns)  # noqa: S102 - trusted repository cells
+            for cell in _svm_section(notebook):
+                source = "".join(cell["source"])
+                # Sel persiapan sudah dijalankan oleh _execute_prep dan datanya sudah diperkecil di atas
+                if cell["cell_type"] == "code" and "svm_train_indices, svm_valid_indices =" not in source:
+                    exec(source, ns)  # noqa: S102 - trusted repository cells
             self.assertEqual(len(ns["svm_results"]), 9)
             self.assertEqual(len(ns["svm_custom_models"]), 6)
             self.assertEqual(len(ns["svm_visual_models"]), 6)
