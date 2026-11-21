@@ -32,7 +32,7 @@ Jalankan dari direktori utama repository:
 
 ```bash
 uv venv --python 3.12
-uv pip install jupyterlab notebook pandas numpy matplotlib seaborn scikit-learn scipy
+uv pip install jupyterlab notebook pandas numpy matplotlib seaborn scikit-learn scipy imageio-ffmpeg
 source .venv/bin/activate
 ```
 
