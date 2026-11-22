@@ -104,11 +104,19 @@ Elastic Net menggabungkan regularisasi L1 dan L2 dalam satu fungsi penalti, deng
 Parameter $\rho\in[0,1]$ mengatur proporsi regularisasi L1 dan L2. Dengan demikian, Elastic Net menggabungkan kemampuan L1 dalam menghasilkan bobot nol dengan kemampuan L2 dalam mengendalikan besar bobot model.
 
 \subsection{Support Vector Machine}
-Support Vector Machine (SVM) mencari hiperbidang pemisah dengan margin lebar antara dua kelas. Pada model linear, $\mathbf{w}$ menentukan arah bidang dan $b$ menggeser posisinya. Batas keputusan berada pada $f(\mathbf{x})=\mathbf{w}^{T}\mathbf{x}+b=0$. Untuk $\mathbf{w}\ne 0$, jarak antara dua bidang paralel dengan skor $-1$ dan $+1$ adalah $2/\lVert\mathbf{w}\rVert$. Sampel dengan koefisien dual positif disebut \textit{support vector} karena ikut menentukan skor keputusan.
+Support Vector Machine (SVM) mencari batas keputusan dengan margin lebar
+antara dua kelas. Pada model linear, posisi batas ini ditentukan oleh
+persamaan $f(\mathbf{x})=\mathbf{w}^{T}\mathbf{x}+b=0$. Vektor
+$\mathbf{w}$ menentukan orientasi bidang, sedangkan intersep $b$ menggeser
+posisinya. Tanda skor $f(\mathbf{x})$ menunjukkan di sisi mana sebuah
+sampel berada. Jika $\mathbf{w}\ne 0$, lebar margin adalah jarak antara dua
+bidang sejajar dengan skor $-1$ dan $+1$, yaitu $2/\lVert\mathbf{w}\rVert$.
 
-Data nyata tidak selalu dapat dipisahkan sempurna. SVM menggunakan \textit{soft margin} dengan variabel \textit{slack} $\xi_i$ untuk mengizinkan pelanggaran margin.
-
-Dengan label $y_i\in\{-1,+1\}$ dan parameter $C$ yang mengatur penalti pelanggaran margin, optimasi SVM dirumuskan sebagai berikut.
+Kedua kelas bisa saling tumpang tindih. Karena itu, SVM memakai
+\textit{soft margin} agar sampel boleh berada di dalam margin atau di sisi
+yang salah dari batas keputusan. Untuk sampel ke-$i$ dengan label
+$y_i\in\{-1,+1\}$, variabel $\xi_i$ menampung besarnya pelanggaran margin.
+Parameter $C$ mengatur seberapa berat pelanggaran itu dikenai penalti.
 
 \[
 \begin{aligned}
@@ -120,21 +128,33 @@ Dengan label $y_i\in\{-1,+1\}$ dan parameter $C$ yang mengatur penalti pelanggar
 \end{aligned}
 \]
 
-Untuk menangani data yang tidak dapat dipisahkan secara linear, SVM dapat menggunakan fungsi kernel untuk menghitung kemiripan antar data tanpa harus memetakan data secara eksplisit ke ruang fitur berdimensi lebih tinggi. Pendekatan ini dikenal sebagai \textit{kernel trick}. Fungsi keputusan SVM dalam bentuk kernel dirumuskan sebagai berikut.
+Untuk membentuk batas keputusan nonlinear, SVM mengganti hasil kali dalam
+antarvektor fitur dengan nilai kernel $K(\mathbf{x}_i,\mathbf{x})$.
+Kernel menghitung nilai ini tanpa perlu membangun koordinat di ruang fitur
+baru. Cara ini dikenal sebagai \textit{kernel trick}. Skor keputusan
+merupakan jumlah kontribusi setiap sampel latih ditambah intersep:
 
 \[
 f(\mathbf{x})=
 \sum_i\alpha_i y_i K(\mathbf{x}_i,\mathbf{x})+b
 \]
 
-Dengan menggunakan pengali Lagrange, optimasi dapat ditulis sebagai masalah dual kuadratik pada koefisien $\alpha_i$:
+Koefisien $\alpha_i$ menentukan besar kontribusi sampel ke-$i$.
+Sampel dengan $\alpha_i>0$ disebut \textit{support vector} karena muncul
+dalam perhitungan skor. Dengan pengali Lagrange, pelatihan dapat dirumuskan
+sebagai masalah optimasi kuadratik dalam koefisien $\alpha_i$:
 \[
 \begin{aligned}
 \max_{\boldsymbol{\alpha}}\quad &\sum_i\alpha_i-\frac{1}{2}\sum_i\sum_j\alpha_i\alpha_j y_i y_j K(\mathbf{x}_i,\mathbf{x}_j),\\
 \text{s.t.}\quad &0\leq\alpha_i\leq C,\qquad \sum_i\alpha_i y_i=0.
 \end{aligned}
 \]
-Batas $C$ membatasi kontribusi tiap sampel. Kendala jumlah berbobot label muncul dari kondisi stasioner terhadap intersep $b$. Masalah kuadratik ini dapat diselesaikan sekaligus pada seluruh vektor koefisien atau dengan \textit{Sequential Minimal Optimization} (SMO), yang memperbarui dua koefisien sekaligus agar kendala jumlah tetap terpenuhi \cite{ref:materi-12, ref:platt-1998}.
+Setiap koefisien berada di antara 0 dan $C$. Jumlah koefisien berbobot
+label harus nol. Syarat ini berasal dari turunan fungsi Lagrange terhadap
+intersep $b$ yang bernilai nol pada solusi. Optimasi dapat memperbarui
+seluruh vektor koefisien sekaligus. Alternatifnya, \textit{Sequential
+Minimal Optimization} (SMO) memperbarui dua koefisien setiap kali agar
+jumlah berbobot label tetap nol \cite{ref:materi-12, ref:platt-1998}.
 
 \subsubsection{Kernel Linear}
 Kernel linear menggunakan hasil kali dalam antara dua vektor fitur, dengan rumus berikut.
@@ -143,27 +163,35 @@ Kernel linear menggunakan hasil kali dalam antara dua vektor fitur, dengan rumus
 K(\mathbf{x},\mathbf{z})=\mathbf{x}^{T}\mathbf{z}
 \]
 
-Kernel ini menghasilkan batas pemisah linear pada ruang fitur asli dan sesuai digunakan ketika data dapat dipisahkan dengan batas linear atau ketika hubungan linear sudah cukup mewakili pola data.
+Kernel ini menghasilkan batas pemisah berupa hiperbidang pada ruang
+fitur asli. Kernel linear dapat dipakai jika batas tersebut sudah cukup
+mewakili pola data, meskipun kedua kelas tidak terpisah sempurna.
 
 \subsubsection{Kernel Polinomial}
-Kernel polinomial memungkinkan SVM memodelkan hubungan non-linear melalui interaksi antarfitur hingga derajat tertentu, dengan rumus berikut.
+Kernel polinomial mengalikan hasil kali dalam dengan $\gamma$, lalu
+menambahkan $c_0$ sebelum memangkatkannya. Operasi ini memungkinkan
+interaksi antarfitur membentuk batas keputusan nonlinear.
 
 \[
 K(\mathbf{x},\mathbf{z})=
 (\gamma\mathbf{x}^{T}\mathbf{z}+c_0)^d
 \]
 
-Parameter $d$ menentukan derajat polinomial, sedangkan $\gamma$ dan $c_0$ mengatur skala serta pergeseran fungsi kernel.
+Parameter $d$ menentukan derajat polinomial.
 
 \subsubsection{Kernel Gaussian (RBF)}
-Kernel Gaussian atau \textit{Radial Basis Function} (RBF) menghitung kemiripan berdasarkan jarak antara dua vektor fitur, dengan rumus berikut.
+Kernel Gaussian atau \textit{Radial Basis Function} (RBF) memberi nilai
+lebih tinggi pada pasangan vektor yang berdekatan.
 
 \[
 K(\mathbf{x},\mathbf{z})=
 \exp\left(-\gamma\lVert\mathbf{x}-\mathbf{z}\rVert^2\right)
 \]
 
-Parameter $\gamma$ mengatur seberapa jauh pengaruh suatu data terhadap data lainnya. Nilai $\gamma$ yang besar menghasilkan pengaruh yang lebih lokal dan batas pemisah yang lebih fleksibel, sehingga dapat meningkatkan risiko \textit{overfitting} apabila tidak dipilih dengan tepat.
+Semakin besar $\gamma$, semakin cepat nilai kernel turun ketika jarak
+bertambah. Akibatnya, pengaruh tiap sampel lebih terbatas pada lingkungan
+terdekatnya. Batas keputusan bisa lebih fleksibel, tetapi juga bisa terlalu
+mengikuti data latih (\textit{overfitting}).
 
 \subsection{Bayesian Network (Naive Bayes)}
 \textit{Naive Bayes} merupakan algoritma klasifikasi probabilistik yang didasarkan pada teorema Bayes dengan asumsi bahwa setiap fitur bersifat independen secara kondisional terhadap kelas. Dalam representasi \textit{Bayesian network}, kelas menjadi induk dari seluruh fitur, sehingga hubungan ketergantungan antarfitur tidak dimodelkan secara langsung.

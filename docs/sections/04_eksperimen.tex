@@ -157,9 +157,20 @@ Gambar~\ref{fig:logreg}.
 \subsubsection{Support Vector Machine}
 
 \paragraph{Rancangan dan perbandingan kernel}
-Perbandingan kernel memakai pembagian pertama dari \texttt{StratifiedGroupKFold} pada \texttt{scikit-learn} 1.7.1. Dari 21.899 baris latih, 1.000 baris dipilih secara terstratifikasi untuk membatasi ukuran matriks kernel. Seluruh 5.474 baris validasi tetap digunakan. Imputasi median, imputasi modus, \textit{one-hot encoding}, dan standardisasi dipelajari hanya dari 1.000 baris latih itu. Hasilnya memiliki 29 fitur. Semua varian memakai $C=1$ dan toleransi $10^{-3}$; kernel polinomial dan RBF memakai $\gamma=1/29$, dengan derajat 3 dan $c_0=1$ untuk polinomial. Nilai $C$ tidak divariasikan.
+Perbandingan kernel memakai pembagian pertama dari
+\texttt{StratifiedGroupKFold} pada \texttt{scikit-learn} 1.7.1. Karena ukuran
+matriks kernel bertambah secara kuadratik, hanya 1.000 dari 21.899 baris
+latih yang dipakai. Pemilihan baris dilakukan secara terstratifikasi agar
+proporsi kelas tetap mendekati data latih asal. Seluruh 5.474 baris validasi
+tetap digunakan. Parameter imputasi, \textit{one-hot encoding}, dan
+standardisasi dihitung dari 1.000 baris latih tersebut. Setelah
+prapemrosesan, setiap baris memiliki 29 fitur.
 
-Tabel~\ref{tab:svm-kernel} menunjukkan hasil pada validasi. F1 pada tabel ini adalah F1 untuk kelas positif (pemesanan batal), sedangkan F1 \textit{macro} pada tabel validasi silang merata-ratakan F1 kedua kelas.
+Semua varian memakai $C=1$ dan toleransi $10^{-3}$. Kernel polinomial dan
+RBF memakai $\gamma=1/29$. Kernel polinomial juga memakai derajat 3 dan
+$c_0=1$. Tabel~\ref{tab:svm-kernel} melaporkan F1 untuk kelas batal,
+sedangkan \textit{Macro F1} pada validasi silang merata-ratakan F1 kedua
+kelas.
 
 \begin{table}[H]
 \centering
@@ -184,12 +195,42 @@ SMO & RBF & 0,806 & 0,774 & 0,569 & 0,656 & 0,855 \\
 \end{tabular}
 \end{table}
 
-Pada validasi ini, SMO linear dipilih untuk \textit{submission} karena F1 kelas batalnya paling tinggi di antara varian buatan sendiri sebelum pembulatan (0,6772, dibandingkan dengan 0,6768 pada QP linear). Polinomial memberi ROC-AUC tertinggi, sedangkan RBF memberi \textit{precision} lebih tinggi dengan \textit{recall} lebih rendah daripada linear. Pada kernel yang sama, skor kedua implementasi buatan sendiri mendekati \texttt{SVC}. Dalam validasi silang lima lipatan, SMO linear mencapai \textit{Macro F1} $0{,}754\pm0{,}010$ dan ROC-AUC 0,843 (Tabel~\ref{tab:cv}). Pada setiap lipatan, model dan prapemrosesnya dilatih ulang pada 1.000 baris yang dipilih dari bagian latih lipatan tersebut.
+Notebook memilih SMO dengan kernel linear untuk \textit{submission}
+karena varian ini memperoleh F1 kelas batal tertinggi di antara model
+buatan sendiri. Selisih dengan QP linear baru terlihat pada empat angka
+desimal, yaitu 0,6772 dibandingkan 0,6768. Kernel polinomial memperoleh
+ROC-AUC tertinggi. Dibandingkan kernel linear, RBF lebih sering benar
+ketika memprediksi batal, tetapi menangkap lebih sedikit pemesanan yang
+benar-benar batal. Untuk kernel yang sama, metrik QP dan SMO mendekati
+hasil \texttt{SVC}.
+
+Dalam validasi silang lima lipatan, model SMO linear dan prapemrosesnya
+dilatih ulang pada 1.000 baris dari bagian latih setiap lipatan. Rata-rata
+\textit{Macro F1} adalah 0,754 dengan simpangan baku 0,010. Rata-rata
+ROC-AUC adalah 0,843 (Tabel~\ref{tab:cv}).
 
 \paragraph{Konvergensi pemecah}
-Pada pelatihan fitur penuh berukuran 1.000 baris dengan batas 50.000 iterasi, semua kombinasi pemecah dan kernel konvergen. Untuk QP, jumlah langkah adalah 4.077 (linear), 29.524 (polinomial), dan 1.877 (RBF); untuk SMO, jumlah pemindaian luar masing-masing 3.737, 351, dan 96. Angka iterasi tersebut tidak dapat dipakai untuk menyimpulkan satu pemecah lebih cepat karena satu iterasi QP adalah langkah proyeksi, sedangkan satu iterasi SMO adalah satu pemindaian sampel. Pengukuran waktu menunjukkan pola yang bergantung pada kernel: QP/SMO masing-masing sekitar 2,01/1,03 detik untuk linear, 14,48/0,49 detik untuk polinomial, dan 0,93/0,17 detik untuk RBF pada eksekusi ini. Waktu satu kali eksekusi bukan jaminan kinerja pada perangkat lain.
+Pada 1.000 baris latih dengan 29 fitur, semua kombinasi solver dan kernel
+konvergen dalam batas 50.000 iterasi. QP membutuhkan 4.077 langkah untuk
+kernel linear, 29.524 untuk polinomial, dan 1.877 untuk RBF. SMO
+membutuhkan masing-masing 3.737, 351, dan 96 putaran pemindaian. Angka
+ini tidak langsung menunjukkan solver mana yang lebih cepat. Satu
+iterasi QP memperbarui dan memproyeksikan seluruh vektor koefisien,
+sedangkan satu iterasi SMO memindai sejumlah sampel.
 
-Untuk plot bonus, model dilatih ulang setelah proyeksi PCA dua komponen, sehingga jumlah langkah dan status konvergensinya berbeda dari model fitur penuh. Dalam visualisasi ini QP/linear (323 langkah) dan QP/RBF (2.146 langkah) konvergen, tetapi QP/polinomial mencapai batas 50.000 langkah tanpa konvergen. Ketiga model SMO konvergen: linear pada 52 pemindaian, polinomial pada 22.935, dan RBF pada 280. Status kegagalan QP/polinomial ditampilkan pada judul panel dan kurvanya perlu dibaca sebagai solusi yang belum memenuhi toleransi, bukan solusi konvergen.
+Pada eksekusi ini, SMO lebih cepat untuk ketiga kernel. Selisih terbesar
+terjadi pada kernel polinomial, yaitu 0,49 detik dengan SMO dibandingkan
+14,48 detik dengan QP. Untuk kernel linear, waktunya 1,03 dan 2,01 detik.
+Untuk RBF, waktunya 0,17 dan 0,93 detik. Angka ini berasal dari satu
+eksekusi dan dapat berubah pada perangkat lain.
+
+Model dua dimensi untuk visualisasi dilatih terpisah pada dua komponen
+utama. QP konvergen setelah 323 langkah untuk kernel linear dan 2.146
+langkah untuk RBF. Untuk kernel polinomial, QP mencapai batas 50.000
+langkah sebelum memenuhi toleransi. Ketiga varian SMO konvergen setelah
+52 pemindaian untuk linear, 22.935 untuk polinomial, dan 280 untuk RBF.
+Judul panel menandai kurva QP polinomial sebagai hasil dari model yang
+belum konvergen.
 
 \subsubsection{Bayesian Network (Naive Bayes)}
 \paragraph{Rancangan}
