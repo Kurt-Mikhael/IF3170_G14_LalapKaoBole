@@ -29,6 +29,11 @@ class ConstantModel(AnalyticModel):
         return np.ones(len(X))
 
 
+class ZeroModel(AnalyticModel):
+    def decision_function(self, X):
+        return np.zeros(len(X))
+
+
 class SVMVisualizationTests(unittest.TestCase):
     def setUp(self):
         self.X = np.array([[-2.0, -1.0], [-1.0, 1.0], [1.0, -1.0], [2.0, 1.0]])
@@ -76,12 +81,48 @@ class SVMVisualizationTests(unittest.TestCase):
         self.assertIs(plot_svm_boundary(AnalyticModel(), self.X, self.y, ax=ax), ax)
         self.assertIs(ax.figure, fig)
 
+    def test_can_show_predicted_regions_with_caller_supplied_common_bounds(self):
+        ax = plot_svm_boundary(
+            AnalyticModel(), self.X, self.y, show_regions=True,
+            bounds=((-3, 3), (-2, 2)),
+        )
+        self.assertEqual(ax.get_xlim(), (-3, 3))
+        self.assertEqual(ax.get_ylim(), (-2, 2))
+        self.assertEqual(len(ax.collections), 7)  # Regions, two classes, three contours, SVs.
+        legend = {text.get_text() for text in ax.get_legend().get_texts()}
+        self.assertIn("Observed left", legend)
+        self.assertIn("Predicted right", legend)
+        support = next(collection for collection in ax.collections if len(collection.get_facecolors()) == 0)
+        self.assertLess(support.get_sizes()[0], 40)
+        self.assertLess(support.get_alpha(), 1)
+        with self.assertRaisesRegex(ValueError, "bounds"):
+            plot_svm_boundary(AnalyticModel(), self.X, self.y, bounds=((1, 1), (-2, 2)))
+
     def test_constant_scores_annotate_missing_contours_without_inventing_them(self):
         ax = plot_svm_boundary(ConstantModel(), self.X, self.y)
         self.assertTrue(
             any("constant decision score" in text.get_text() for text in ax.texts)
         )
         self.assertEqual(len(ax.collections), 3)
+        region_ax = plot_svm_boundary(
+            ConstantModel(), self.X, self.y, show_regions=True,
+            bounds=((-3, 3), (-2, 2)),
+        )
+        self.assertTrue(any(text.get_text().startswith("Predicted") for text in region_ax.get_legend().get_texts()))
+
+    def test_zero_score_region_uses_positive_class_under_default_prediction(self):
+        ax = plot_svm_boundary(
+            ZeroModel(), self.X, self.y, show_regions=True,
+            bounds=((-3, 3), (-2, 2)),
+        )
+        from matplotlib.colors import to_rgba
+
+        facecolors = [
+            color
+            for collection in ax.collections[:2]
+            for color in collection.get_facecolors()
+        ]
+        self.assertTrue(any(np.allclose(color, to_rgba("#F8E3DA", alpha=0.55)) for color in facecolors))
 
     def test_empty_endpoint_contour_is_not_advertised(self):
         class EndpointModel(AnalyticModel):
@@ -92,6 +133,14 @@ class SVMVisualizationTests(unittest.TestCase):
         legend = {text.get_text() for text in ax.get_legend().get_texts()}
         self.assertNotIn("f = +1", legend)
         self.assertTrue(any("f = +1" in text.get_text() for text in ax.texts))
+
+    def test_compact_mode_places_short_missing_contour_note_in_subtitle(self):
+        ax = plot_svm_boundary(
+            ConstantModel(), self.X, self.y, show_regions=True, compact=True,
+            title="SMO | rbf | converged",
+        )
+        self.assertIn("No f=", ax.get_title())
+        self.assertEqual(len(ax.texts), 0)
 
     def test_real_svm_kernels_and_solvers_render_actual_contours_and_support_vectors(
         self,

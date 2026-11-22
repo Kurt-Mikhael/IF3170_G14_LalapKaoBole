@@ -204,6 +204,21 @@ ketika memprediksi batal, tetapi menangkap lebih sedikit pemesanan yang
 benar-benar batal. Untuk kernel yang sama, metrik QP dan SMO mendekati
 hasil \texttt{SVC}.
 
+Gambar~\ref{fig:svm-pr} memperlihatkan perubahan \textit{precision} dan
+\textit{recall} ketika ambang skor keputusan digeser pada ketiga model
+SMO. Penanda pada tiap kurva menunjukkan hasil dengan ambang bawaan
+$f=0$ yang juga dipakai pada tabel.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.82\textwidth]{../output/svm_precision_recall.pdf}
+\caption{Kurva \textit{precision--recall} SMO pada 5.474 baris validasi
+dengan 29 fitur. Kelas positif adalah pemesanan batal. Garis acuan
+menunjukkan proporsi kelas positif dan titik pada kurva menunjukkan
+hasil pada ambang keputusan $f=0$.}
+\label{fig:svm-pr}
+\end{figure}
+
 Dalam validasi silang lima lipatan, model SMO linear dan prapemrosesnya
 dilatih ulang pada 1.000 baris dari bagian latih setiap lipatan. Rata-rata
 \textit{Macro F1} adalah 0,754 dengan simpangan baku 0,010. Rata-rata

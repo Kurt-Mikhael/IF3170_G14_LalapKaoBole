@@ -105,6 +105,19 @@ class SvmNotebookTests(unittest.TestCase):
         self.assertIn("max_iter': -1", joined)
         self.assertIn("OUTPUT_DIR / 'svm_boundaries_qp.png'", joined)
         self.assertIn("OUTPUT_DIR / 'svm_boundaries_smo.png'", joined)
+        self.assertIn("svm_precision_recall.pdf", joined)
+        self.assertIn("average_precision_score", joined)
+        self.assertIn("precision_recall_curve", joined)
+        self.assertIn("show_regions=True", joined)
+        self.assertIn("bounds=svm_plot_bounds", joined)
+        self.assertIn("legend=False", joined)
+        pr_markdown = [cell for cell in notebook["cells"] if cell["cell_type"] == "markdown" and "Kurva precision-recall" in "".join(cell["source"])]
+        self.assertEqual(len(pr_markdown), 1)
+        pr_cells = [cell for cell in notebook["cells"] if cell["cell_type"] == "code" and "svm_precision_recall.pdf" in "".join(cell["source"])]
+        self.assertEqual(len(pr_cells), 1)
+        pca_cell = next(cell for cell in notebook["cells"] if cell["cell_type"] == "code" and "svm_pca = PCA" in "".join(cell["source"]))
+        self.assertNotIn("svm_precision_recall.pdf", "".join(pca_cell["source"]))
+        self.assertLess(notebook["cells"].index(pr_markdown[0]), notebook["cells"].index(pr_cells[0]))
         for cell in notebook["cells"]:
             if cell["cell_type"] == "code":
                 compile("".join(cell["source"]), f"cell-{cell.get('id', '')}", "exec")
@@ -152,6 +165,49 @@ class SvmNotebookTests(unittest.TestCase):
             for solver in ("qp", "smo"):
                 path = Path(directory) / f"svm_boundaries_{solver}.png"
                 self.assertGreater(path.stat().st_size, 1000)
+                axes = ns["svm_boundary_axes"][solver]
+                self.assertEqual(len(axes), 3)
+                self.assertEqual(len(axes[0].figure.legends), 1)
+                for ax in axes:
+                    self.assertEqual(ax.get_xlim(), axes[0].get_xlim())
+                    self.assertEqual(ax.get_ylim(), axes[0].get_ylim())
+                    self.assertIsNone(ax.get_legend())
+                    self.assertTrue(any("iter=" in line for line in ax.get_title().splitlines()))
+                legend = {text.get_text() for text in axes[0].figure.legends[0].get_texts()}
+                self.assertTrue({
+                    "Observed 0 (not canceled)", "Observed 1 (canceled)",
+                    "Predicted 0 (not canceled)", "Predicted 1 (canceled)",
+                }.issubset(legend))
+                self.assertEqual(axes[0].get_ylabel().startswith("PC2"), True)
+                self.assertEqual([ax.get_ylabel() for ax in axes[1:]], ["", ""])
+            pr_path = Path(directory) / "svm_precision_recall.pdf"
+            self.assertGreater(pr_path.stat().st_size, 1000)
+            self.assertEqual(set(ns["svm_pr_average_precision"]), {"linear", "poly", "rbf"})
+            self.assertEqual(len(ns["svm_pr_ax"].lines), 4)
+            self.assertEqual(len(ns["svm_pr_ax"].collections), 3)
+            legend_text = [text.get_text() for text in ns["svm_pr_ax"].get_legend().get_texts()]
+            self.assertTrue(any("proporsi positif" in text.lower() for text in legend_text))
+            self.assertEqual(sum("AP=" in text for text in legend_text), 3)
+            self.assertEqual(len(legend_text), 5)
+            marker_paths = [
+                tuple(np.round(collection.get_paths()[0].vertices, 4).ravel())
+                for collection in ns["svm_pr_ax"].collections
+            ]
+            self.assertEqual(len(set(marker_paths)), 3)
+            self.assertEqual(ns["svm_positive_prevalence"], np.mean(ns["svm_y_valid"] == 1))
+            for index, svm_name in enumerate(("linear", "poly", "rbf")):
+                model = ns["svm_custom_models"][("smo", svm_name)]
+                scores = model.decision_function(ns["svm_X_valid"])
+                np.testing.assert_array_equal(model.predict(ns["svm_X_valid"]), scores >= 0)
+                np.testing.assert_allclose(
+                    ns["svm_pr_ax"].collections[index].get_offsets(),
+                    [[
+                        ns["recall_score"](ns["svm_y_valid"], scores >= 0, pos_label=1, zero_division=0),
+                        ns["precision_score"](ns["svm_y_valid"], scores >= 0, pos_label=1, zero_division=0),
+                    ]],
+                )
+            self.assertEqual(ns["svm_pr_ax"].get_xlabel(), "Recall (kelas 1)")
+            self.assertEqual(ns["svm_pr_ax"].get_ylabel(), "Precision (kelas 1)")
             for row in ns["svm_custom_results"] + ns["svm_sklearn_results"]:
                 self.assertTrue({"backend", "solver", "kernel", "accuracy", "precision",
                                  "recall", "f1", "roc_auc", "train_time", "n_support",

@@ -5,9 +5,13 @@ from typing import Literal
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.lines import Line2D
+from matplotlib.patches import Patch
 
 
-def plot_svm_boundary(model, X, y, *, ax=None, title=None, resolution=150):
+def plot_svm_boundary(
+    model, X, y, *, ax=None, title=None, resolution=150, show_regions=False,
+    bounds=None, legend=True, compact=False,
+):
     """Plot samples, support vectors, and available decision-function contours.
 
     Contours show decision-function levels, not Euclidean distances (especially
@@ -51,14 +55,25 @@ def plot_svm_boundary(model, X, y, *, ax=None, title=None, resolution=150):
     if not np.isin(y, classes).all():
         raise ValueError("y contains labels not present in model.classes_")
 
+    if bounds is not None:
+        try:
+            bounds = np.asarray(bounds, dtype=float)
+        except (TypeError, ValueError) as exc:
+            raise ValueError("bounds must contain finite x and y limits") from exc
+        if bounds.shape != (2, 2) or not np.isfinite(bounds).all() or np.any(bounds[:, 0] >= bounds[:, 1]):
+            raise ValueError("bounds must contain finite increasing x and y limits")
+
     # Bounds include both observed samples and support vectors, then add modest padding.
     points = np.concatenate((X, support), axis=0)
-    lower = points.min(axis=0)
-    upper = points.max(axis=0)
-    span = upper - lower
-    span[span == 0] = 1.0
-    lower = lower - 0.05 * span
-    upper = upper + 0.05 * span
+    if bounds is None:
+        lower = points.min(axis=0)
+        upper = points.max(axis=0)
+        span = upper - lower
+        span[span == 0] = 1.0
+        lower = lower - 0.05 * span
+        upper = upper + 0.05 * span
+    else:
+        lower, upper = bounds[:, 0], bounds[:, 1]
     # x_grid and y_grid define feature-coordinate axes shared by contour evaluation.
     x_grid = np.linspace(lower[0], upper[0], resolution)
     y_grid = np.linspace(lower[1], upper[1], resolution)
@@ -85,6 +100,13 @@ def plot_svm_boundary(model, X, y, *, ax=None, title=None, resolution=150):
         _, ax = plt.subplots()
     markers = ("o", "^", "s", "D")
     colors = ("#0072B2", "#D55E00")
+    if show_regions:
+        # SVM predicts class 1 at f >= 0; integer bins preserve that tie rule.
+        predicted = (score_grid >= 0).astype(int)
+        ax.contourf(
+            grid_x, grid_y, predicted, levels=(-0.5, 0.5, 1.5),
+            colors=("#DCEAF3", "#F8E3DA"), alpha=0.55, zorder=0,
+        )
     for index, label in enumerate(classes):
         mask = y == label
         ax.scatter(
@@ -92,7 +114,9 @@ def plot_svm_boundary(model, X, y, *, ax=None, title=None, resolution=150):
             X[mask, 1],
             color=colors[index],
             marker=markers[index],
-            label=str(label),
+            s=20 if show_regions else None,
+            alpha=0.75 if show_regions else None,
+            label=(f"Observed {label}" if show_regions else str(label)),
             zorder=3,
         )
     if len(support):
@@ -102,10 +126,11 @@ def plot_svm_boundary(model, X, y, *, ax=None, title=None, resolution=150):
             facecolors="none",
             edgecolors="black",
             marker="o",
-            s=100,
-            linewidths=1.5,
+            s=30 if show_regions else 100,
+            linewidths=0.8 if show_regions else 1.5,
+            alpha=0.65 if show_regions else None,
             label="Support vectors",
-            zorder=4,
+            zorder=2.5 if show_regions else 4,
         )
 
     level_styles: dict[int, Literal["--", "-"]] = {-1: "--", 0: "-", 1: "--"}
@@ -130,23 +155,25 @@ def plot_svm_boundary(model, X, y, *, ax=None, title=None, resolution=150):
         else:
             missing.append(level)
     if missing:
-        missing_labels = (f"f = {level:+d}" if level else "f = 0" for level in missing)
-        if score_grid.min() == score_grid.max():
+        if compact:
+            message = "No " + ", ".join(f"f={level:+d}" if level else "f=0" for level in missing)
+        elif score_grid.min() == score_grid.max():
             message = f"No contours: constant decision score f = {score_grid.min():g}"
         else:
             message = "Contour(s) absent on this grid: " + ", ".join(
-                missing_labels
+                f"f = {level:+d}" if level else "f = 0" for level in missing
             )
-        ax.text(
-            0.02,
-            0.98,
-            message,
-            transform=ax.transAxes,
-            va="top",
-            fontsize="small",
-        )
+        if compact:
+            title = f"{title}\n{message}" if title else message
+        else:
+            ax.text(0.02, 0.98, message, transform=ax.transAxes, va="top", fontsize="small")
 
     handles, labels = ax.get_legend_handles_labels()
+    if show_regions:
+        region_labels = [f"Predicted {label}" for label in classes]
+        handles.extend(Patch(facecolor=color, alpha=0.7, label=label)
+                       for label, color in zip(region_labels, ("#DCEAF3", "#F8E3DA")))
+        labels.extend(region_labels)
     level_labels = {
         level: (f"f = {level:+d}" if level else "f = 0") for level in (-1, 0, 1)
     }
@@ -161,11 +188,12 @@ def plot_svm_boundary(model, X, y, *, ax=None, title=None, resolution=150):
         for level in (-1, 0, 1)
         if level not in missing
     )
-    ax.legend(
-        handles=handles,
-        labels=labels
-        + [level_labels[level] for level in (-1, 0, 1) if level not in missing],
-    )
+    if legend:
+        ax.legend(
+            handles=handles,
+            labels=labels
+            + [level_labels[level] for level in (-1, 0, 1) if level not in missing],
+        )
     ax.set(
         xlim=(lower[0], upper[0]),
         ylim=(lower[1], upper[1]),

@@ -1225,27 +1225,42 @@ pertama lalu mendatar karena gradiennya mengecil di dekat minimum.
 \end{figure}
 \subsubsection{Visualisasi Support Vector Machine}
 
-Fungsi \texttt{plot\_svm\_boundary} pada
-\texttt{src/models/svm/visualization.py} memerlukan model dengan dua fitur.
-Notebook memasang PCA pada data latih yang sudah dipraproses, lalu melatih
-model baru dengan dua komponen utama. Gambar~\ref{fig:svm-batas} menunjukkan
-batas model dua dimensi tersebut. Batas model dengan seluruh fitur tidak
-diproyeksikan ke gambar ini.
+Untuk membandingkan bentuk batas keputusan tiap kernel, notebook menghitung
+PCA dari 1.000 baris latih yang sudah dipraproses. Komponen pertama (PC1)
+menjelaskan 16,0\% varians data tersebut, sedangkan komponen kedua (PC2)
+menjelaskan 10,8\%. Enam model pada Gambar~\ref{fig:svm-batas} dilatih
+ulang dari dua komponen yang sama. Karena keduanya hanya mencakup sekitar
+26,8\% variasi data latih, gambar ini tidak mewakili batas keputusan model
+29 fitur yang hasil validasinya dirangkum pada Tabel~\ref{tab:svm-kernel}.
 
-Fungsi mengevaluasi \texttt{decision\_function} pada kisi titik. Garis
-penuh menghubungkan titik dengan skor 0 dan menunjukkan batas keputusan.
-Garis putus-putus menandai skor $-1$ dan $+1$ jika tingkat tersebut muncul
-di area gambar. Pada kernel nonlinear, kedua garis itu menunjukkan tingkat
-skor, bukan jarak dari batas keputusan. Lingkaran kosong menandai
-\textit{support vector}.
+Fungsi \texttt{plot\_svm\_boundary} mengevaluasi
+\texttt{decision\_function} pada kisi titik. Warna latar menunjukkan kelas
+prediksi, sedangkan simbol titik menunjukkan label asli data latih.
+Lingkaran kosong mengelilingi \textit{support vector}. Garis penuh
+mengikuti skor $f=0$, yaitu batas antara dua kelas prediksi. Garis
+putus-putus mengikuti skor $f=-1$ atau $f=+1$ jika tingkat tersebut muncul
+di area gambar. Pada kernel nonlinear, kontur tersebut menunjukkan
+tingkat skor dan tidak menyatakan jarak dari batas keputusan.
 
 \begin{figure}[H]
 \centering
 \includegraphics[width=\textwidth]{../output/svm_boundaries_qp.png}\\
 \includegraphics[width=\textwidth]{../output/svm_boundaries_smo.png}
-\caption{Batas keputusan, tingkat margin, dan \textit{support vector} pada model dua komponen PCA. QP ditampilkan di baris atas dan SMO di baris bawah. Judul panel menunjukkan status konvergensi masing-masing model.}
+\caption{Batas keputusan SVM pada dua komponen utama dari 1.000 baris latih.
+QP ditampilkan di baris atas dan SMO di baris bawah. Ketiga kolom
+menunjukkan kernel linear, polinomial, dan RBF pada skala sumbu yang sama.
+Simbol menunjukkan kelas sebenarnya dan warna latar menunjukkan kelas
+hasil prediksi.}
 \label{fig:svm-batas}
 \end{figure}
+
+Pada kedua panel linear, skor tidak mencapai nol di area gambar,
+sehingga seluruh latar menunjukkan kelas tidak batal. Kernel polinomial
+dan RBF membentuk wilayah prediksi batal. Pada panel RBF, misalnya,
+sebagian wilayah ini dikelilingi kontur tertutup. Bentuk wilayah tersebut
+perlu dibaca bersama status konvergensinya. Batas pada panel QP
+polinomial berasal dari iterasi terakhir saat batas 50.000 langkah
+tercapai, sebelum optimasi memenuhi toleransi.
 \subsubsection{Visualisasi Graf Bayesian Network (Naive Bayes)}
 
 Fungsi \texttt{plot\_naive\_bayes\_graph} pada \texttt{src/models/naive\_bayes/visualization.py} menggambar graf yang menampilkan hubungan antara variabel kelas dan fitur, menggunakan Matplotlib. Kelas digambar sebagai simpul di tengah dengan panah ke setiap fitur, sesuai struktur Naive Bayes. Tebal panah menyatakan informasi bersama (\textit{mutual information}) antara fitur dan kelas \cite{ref:cover-2006}.
