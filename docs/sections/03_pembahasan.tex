@@ -680,7 +680,30 @@ $2/3$ pada bonus \textit{cost-sensitive}.
 
 \subsubsection{Implementasi Support Vector Machine}
 
-% TODO: Optimasi dual, kernel trick, parameter C dan gamma, beserta source code.
+Kelas \texttt{SVM} pada \texttt{src/models/svm/svm.py} mengimplementasikan SVM biner dengan kernel linear, polinomial, dan Gaussian (RBF). Masukan harus numerik dan terhingga; imputasi, \textit{one-hot encoding}, dan standardisasi dilakukan oleh \textit{preprocessor} terpisah. Label diurutkan, kemudian dikodekan sebagai $-1$ dan $+1$. Model menyediakan dua pemecah masalah dual: \texttt{qp} dan \texttt{smo}.
+
+Kedua pemecah mengoptimalkan koefisien $\alpha_i$ dengan batas $0\leq\alpha_i\leq C$ dan kendala $\sum_i\alpha_i y_i=0$. QP meminimumkan bentuk ekuivalen dari objektif dual, yaitu $J(\boldsymbol{\alpha})=\frac12\boldsymbol{\alpha}^{T}Q\boldsymbol{\alpha}-\mathbf{1}^{T}\boldsymbol{\alpha}$, dengan $Q_{ij}=y_i y_j K(\mathbf{x}_i,\mathbf{x}_j)$. Setiap langkah gradien diproyeksikan kembali ke batas koefisien dan kendala kesetimbangan; proyeksi memakai pencarian biner untuk pengali kendala. SMO memilih pasangan koefisien, menghitung batas layak $L,H$, lalu memperbarui pasangan tersebut sehingga jumlah berbobot label tetap sama. Jika kurvatur pasangan tidak positif, implementasi membandingkan objektif pada kedua ujung interval.
+
+Cuplikan~\ref{lst:svm-qp} menunjukkan langkah gradien terproyeksi pada QP. Langkah ini memakai kebalikan nilai eigen terbesar $Q$, dengan batas bawah pada penyebut untuk mencegah pembagian dengan nol.
+
+\begin{lstlisting}[caption={Langkah gradien terproyeksi pada SVM}, label={lst:svm-qp}]
+def _fit_qp(self, K):
+    y, a, C = self._y_train, self._alphas, float(self.C)
+    Q = (y[:, None] * y[None, :]) * K
+    lipschitz = max(float(np.linalg.eigvalsh(Q)[-1]), 1e-12)
+    step = 1.0 / lipschitz
+    z, momentum = a.copy(), 1.0
+    iteration = 0
+    for iteration in range(1, self.max_iter + 1):
+        candidate = self._project(z - step * (Q @ z - 1.0), y, C)
+        ...
+\end{lstlisting}
+
+QP memakai momentum untuk membentuk titik awal langkah berikutnya. Ketika perubahan terproyeksi cukup kecil, QP menghitung intersep dan memeriksa kondisi Karush--Kuhn--Tucker (KKT) dengan toleransi \texttt{tol}. SMO bergantian memindai semua sampel dan sampel dengan $0<\alpha_i<C$; \texttt{n\_iter\_} menghitung putaran pemindaian itu. Jika kondisi KKT belum terpenuhi saat optimasi selesai, model tetap dapat dipakai, tetapi memberi peringatan dan menandai \texttt{converged\_} sebagai \texttt{False}.
+
+QP mengambil rata-rata estimasi $b$ dari \textit{support vector} bebas ($0<\alpha_i<C$) jika tersedia. Jika tidak ada, QP menggunakan titik tengah interval intersep saat kedua batasnya tersedia. SMO memperbarui $b$ setiap kali satu pasangan koefisien berhasil diperbarui. Untuk kernel linear, model merangkum kontribusi koefisien menjadi $\mathbf{w}=\sum_i\alpha_i y_i\mathbf{x}_i$; kedua kernel lain menghitung skor dari \textit{support vector} yang disimpan. \texttt{decision\_function} mengembalikan skor, bukan probabilitas. \texttt{predict} memetakan skor negatif ke label pertama dan skor nol atau positif ke label kedua.
+
+Parameter $C$ mengatur penalti pelanggaran margin: nilai lebih besar memberi penalti lebih kuat, bukan jaminan akurasi lebih tinggi. Parameter $\gamma$ mengatur skala kernel polinomial dan RBF; \texttt{scale} memakai $1/(d\,\mathrm{Var}(X))$ dan \texttt{auto} memakai $1/d$, dengan $d$ jumlah fitur. Nilai \texttt{gamma} tidak berpengaruh pada kernel linear. Pelatihan menyimpan matriks kernel padat berukuran $n\times n$, sehingga memori tumbuh sebagai $O(n^2)$.
 
 \subsubsection{Implementasi Bayesian Network (Naive Bayes)}
 
@@ -825,11 +848,14 @@ diimputasi terlebih dahulu pada model pembanding.
 \subsubsection{Penyimpanan dan Pemuatan Model}
 
 Setiap kelas model menyediakan metode \texttt{save(path)} dan
-\texttt{load(path)} berbasis \texttt{pickle}. Objek \textit{preprocessing}
-disimpan terpisah, yaitu \texttt{ColumnTransformer} untuk KNN, SVM, dan
-\textit{Logistic Regression}, serta kamus parameter (kategori langka pada C4.5,
-kode kategori dan batas \textit{bin} pada \textit{Naive Bayes}), agar data
-mentah diproses identik saat prediksi. Keberhasilan penyimpanan diperiksa
+\texttt{load(path)} berbasis \texttt{pickle}. Parameter \textit{preprocessing}
+ikut disimpan agar data mentah diproses secara konsisten saat prediksi.
+Untuk SVM, model terpilih disimpan di \texttt{svm.pkl} dan prapemrosesnya
+di \texttt{svm\_preprocessor.pkl}. Keduanya dimuat ulang untuk membuat
+\texttt{submission\_svm.csv}. \textit{Logistic Regression} menyimpan model
+terpilih dan prapemrosesnya dalam satu berkas, \texttt{logreg\_bundle.pkl}.
+KNN menyimpan prapemroses terpisah; C4.5 dan \textit{Naive Bayes} menyimpan
+kamus parameter kategorisasi. Keberhasilan penyimpanan diperiksa
 dengan memuat ulang model lalu memastikan probabilitas atau prediksi pada
 beberapa contoh sama dengan model asal. Berkas \texttt{pickle} hanya boleh
 dimuat dari sumber tepercaya karena pemuatan dapat menjalankan kode.
@@ -1111,7 +1137,19 @@ pertama lalu mendatar karena gradiennya mengecil di dekat minimum.
 \caption{Kontur \textit{log-loss} dan lintasan parameter pada \textit{frame} akhir video}
 \label{fig:logvideo}
 \end{figure}
-% TODO: Bonus SVM (gambar bidang pemisah, margin, dan support vector).
+\subsubsection{Visualisasi Support Vector Machine}
+
+Visualisasi pada Gambar~\ref{fig:svm-batas} membandingkan batas keputusan untuk ketiga kernel dengan kedua pemecah QP dan SMO. Karena model penuh memakai lebih dari dua fitur, fitur yang telah dipraproses terlebih dahulu diproyeksikan ke dua komponen utama PCA, lalu model dua dimensi terpisah dilatih pada proyeksi tersebut. Dengan demikian, gambar menunjukkan model pada bidang PCA, bukan irisan atau proyeksi batas keputusan model berdimensi penuh. Garis penuh menandai $f(\mathbf{x})=0$ dan garis putus-putus menandai tingkat skor $-1$ dan $+1$ bila tingkat itu muncul pada bidang gambar; lingkaran menandai support vector. Untuk kernel nonlinear, garis ini adalah tingkat skor keputusan, bukan jarak geometris.
+
+Pada konfigurasi visualisasi, QP konvergen untuk kernel linear dan RBF, tetapi tidak konvergen untuk polinomial dalam batas 50.000 iterasi. Ketiga model visualisasi SMO konvergen. Status tersebut khusus untuk model dua dimensi yang digambar; tidak menggantikan hasil konvergensi model pada fitur penuh.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=\textwidth]{../output/svm_boundaries_qp.png}\\
+\includegraphics[width=\textwidth]{../output/svm_boundaries_smo.png}
+\caption{Batas keputusan, tingkat margin, dan support vector pada model dua komponen PCA. Baris atas: QP; baris bawah: SMO. Status konvergensi dicantumkan pada judul panel.}
+\label{fig:svm-batas}
+\end{figure}
 \subsubsection{Visualisasi Graf Bayesian Network (Naive Bayes)}
 
 Fungsi \texttt{plot\_naive\_bayes\_graph} pada \texttt{src/models/naive\_bayes/visualization.py} menggambar graf yang menampilkan hubungan antara variabel kelas dan fitur, menggunakan Matplotlib. Kelas digambar sebagai simpul di tengah dengan panah ke setiap fitur, sesuai struktur Naive Bayes. Tebal panah menyatakan informasi bersama (\textit{mutual information}) antara fitur dan kelas \cite{ref:cover-2006}.

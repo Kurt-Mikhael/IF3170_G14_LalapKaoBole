@@ -30,7 +30,9 @@ data validasi untuk memilih konfigurasi tiap model, dan seluruh model memakai
 fold yang sama agar hasilnya sebanding. Evaluasi akhir memakai \textit{5-fold cross-validation} penuh dengan
 seluruh langkah \textit{preprocessing} dan pelatihan diulang pada tiap
 \textit{fold}, dan hasilnya dilaporkan sebagai rata-rata dan simpangan baku.
-Model akhir untuk \textit{submission} dilatih ulang pada seluruh \texttt{train.csv}.
+C4.5, KNN, dan \textit{Naive Bayes} dilatih ulang pada seluruh \texttt{train.csv}
+untuk \textit{submission}. SVM dan \textit{Logistic Regression} memakai model
+terpilih yang sudah dilatih pada bagian latih dari pembagian pertama.
 
 \subsubsection{Konfigurasi Parameter}
 
@@ -69,9 +71,9 @@ Metrik dihitung dengan \texttt{sklearn.metrics} dari \textit{confusion matrix}.
         batal sebagai pelengkap. \textit{Accuracy} dibandingkan dengan
         \textit{baseline} 0,675 yang diperoleh jika semua pemesanan ditebak
         tidak batal.
-    \item \textit{ROC-AUC} menilai kualitas urutan probabilitas tanpa bergantung
-        pada satu \textit{threshold}. Pada C4.5 probabilitas diambil dari
-        proporsi kelas pada daun.
+    \item \textit{ROC-AUC} menilai urutan skor tanpa bergantung pada satu
+        ambang prediksi. C4.5 memakai proporsi kelas pada daun, sedangkan
+        SVM memakai skor dari fungsi keputusan.
     \item \textit{Log-loss} dipakai untuk membandingkan \textit{Logistic Regression} dengan \texttt{scikit-learn}.
 \end{itemize}
 
@@ -153,11 +155,45 @@ Gambar~\ref{fig:logreg}.
 \end{figure}
 
 \subsubsection{Support Vector Machine}
-% TODO: Tabel metrik, pengaruh kernel dan C.
+
+\paragraph{Rancangan dan perbandingan kernel}
+Perbandingan kernel memakai pembagian pertama dari \texttt{StratifiedGroupKFold} pada \texttt{scikit-learn} 1.7.1. Dari 21.899 baris latih, 1.000 baris dipilih secara terstratifikasi untuk membatasi ukuran matriks kernel. Seluruh 5.474 baris validasi tetap digunakan. Imputasi median, imputasi modus, \textit{one-hot encoding}, dan standardisasi dipelajari hanya dari 1.000 baris latih itu. Hasilnya memiliki 29 fitur. Semua varian memakai $C=1$ dan toleransi $10^{-3}$; kernel polinomial dan RBF memakai $\gamma=1/29$, dengan derajat 3 dan $c_0=1$ untuk polinomial. Nilai $C$ tidak divariasikan.
+
+Tabel~\ref{tab:svm-kernel} menunjukkan hasil pada validasi. F1 pada tabel ini adalah F1 untuk kelas positif (pemesanan batal), sedangkan F1 \textit{macro} pada tabel validasi silang merata-ratakan F1 kedua kelas.
+
+\begin{table}[H]
+\centering
+\small
+\caption{Perbandingan kernel SVM pada validasi pertama (1.000 baris latih)}
+\label{tab:svm-kernel}
+\begin{tabular}{@{}llccccc@{}}
+\toprule
+Pemecah & Kernel & Accuracy & Precision & Recall & F1 batal & ROC-AUC \\
+\midrule
+QP & Linear & 0,806 & 0,738 & 0,625 & 0,677 & 0,851 \\
+QP & Polinomial & 0,800 & 0,740 & 0,592 & 0,658 & 0,857 \\
+QP & RBF & 0,806 & 0,774 & 0,569 & 0,656 & 0,854 \\
+SMO & Linear & 0,806 & 0,738 & 0,626 & 0,677 & 0,851 \\
+SMO & Polinomial & 0,800 & 0,740 & 0,592 & 0,658 & 0,857 \\
+SMO & RBF & 0,806 & 0,774 & 0,569 & 0,656 & 0,855 \\
+\midrule
+\texttt{SVC} & Linear & 0,806 & 0,738 & 0,626 & 0,677 & 0,851 \\
+\texttt{SVC} & Polinomial & 0,800 & 0,740 & 0,592 & 0,658 & 0,857 \\
+\texttt{SVC} & RBF & 0,806 & 0,774 & 0,569 & 0,656 & 0,854 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Pada validasi ini, SMO linear dipilih untuk \textit{submission} karena F1 kelas batalnya paling tinggi di antara varian buatan sendiri sebelum pembulatan (0,6772, dibandingkan dengan 0,6768 pada QP linear). Polinomial memberi ROC-AUC tertinggi, sedangkan RBF memberi \textit{precision} lebih tinggi dengan \textit{recall} lebih rendah daripada linear. Pada kernel yang sama, skor kedua implementasi buatan sendiri mendekati \texttt{SVC}. Dalam validasi silang lima lipatan, SMO linear mencapai \textit{Macro F1} $0{,}754\pm0{,}010$ dan ROC-AUC 0,843 (Tabel~\ref{tab:cv}). Pada setiap lipatan, model dan prapemrosesnya dilatih ulang pada 1.000 baris yang dipilih dari bagian latih lipatan tersebut.
+
+\paragraph{Konvergensi pemecah}
+Pada pelatihan fitur penuh berukuran 1.000 baris dengan batas 50.000 iterasi, semua kombinasi pemecah dan kernel konvergen. Untuk QP, jumlah langkah adalah 4.077 (linear), 29.524 (polinomial), dan 1.877 (RBF); untuk SMO, jumlah pemindaian luar masing-masing 3.737, 351, dan 96. Angka iterasi tersebut tidak dapat dipakai untuk menyimpulkan satu pemecah lebih cepat karena satu iterasi QP adalah langkah proyeksi, sedangkan satu iterasi SMO adalah satu pemindaian sampel. Pengukuran waktu menunjukkan pola yang bergantung pada kernel: QP/SMO masing-masing sekitar 2,01/1,03 detik untuk linear, 14,48/0,49 detik untuk polinomial, dan 0,93/0,17 detik untuk RBF pada eksekusi ini. Waktu satu kali eksekusi bukan jaminan kinerja pada perangkat lain.
+
+Untuk plot bonus, model dilatih ulang setelah proyeksi PCA dua komponen, sehingga jumlah langkah dan status konvergensinya berbeda dari model fitur penuh. Dalam visualisasi ini QP/linear (323 langkah) dan QP/RBF (2.146 langkah) konvergen, tetapi QP/polinomial mencapai batas 50.000 langkah tanpa konvergen. Ketiga model SMO konvergen: linear pada 52 pemindaian, polinomial pada 22.935, dan RBF pada 280. Status kegagalan QP/polinomial ditampilkan pada judul panel dan kurvanya perlu dibaca sebagai solusi yang belum memenuhi toleransi, bukan solusi konvergen.
 
 \subsubsection{Bayesian Network (Naive Bayes)}
 \paragraph{Rancangan}
-Pemilihan konfigurasi Naive Bayes memakai lipatan pertama dari \textit{StratifiedGroupKFold} dengan 5 lipatan, \textit{seed} 42, dan baris yang identik dikelompokkan agar tidak bocor ke data validasi. Lipatan ini sama dengan yang dipakai model lain, terdiri atas 21.897 baris latih dan 5.476 baris validasi dengan proporsi pembatalan 0,328 pada keduanya. Seluruh pilihan (representasi fitur kontinu, jumlah \textit{bin}, dan $\alpha$) ditentukan dari data validasi, bukan dari data uji. Kolom F1 pada tabel di bawah adalah F1 untuk kelas batal.
+Pemilihan konfigurasi Naive Bayes memakai lipatan pertama dari \textit{StratifiedGroupKFold} dengan 5 lipatan, \textit{seed} 42, dan baris yang identik dikelompokkan agar tidak bocor ke data validasi. Angka eksplorasi Naive Bayes berikut berasal dari eksekusi \texttt{scikit-learn} 1.9.1: 21.897 baris latih dan 5.476 baris validasi, dengan proporsi pembatalan 0,328 pada keduanya. Pembagian ini berbeda dari eksekusi 1.7.1 yang dipakai pada tabel SVM. Seluruh pilihan (representasi fitur kontinu, jumlah \textit{bin}, dan $\alpha$) ditentukan dari data validasi, bukan dari data uji. Kolom F1 pada tabel di bawah adalah F1 untuk kelas batal.
 
 \paragraph{Representasi fitur kontinu}
 Tabel~\ref{tab:nb-kontinu} membandingkan distribusi Gaussian dengan \textit{binning} untuk empat fitur kontinu, dengan $\alpha=1$.

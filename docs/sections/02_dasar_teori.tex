@@ -104,9 +104,11 @@ Elastic Net menggabungkan regularisasi L1 dan L2 dalam satu fungsi penalti, deng
 Parameter $\rho\in[0,1]$ mengatur proporsi regularisasi L1 dan L2. Dengan demikian, Elastic Net menggabungkan kemampuan L1 dalam menghasilkan bobot nol dengan kemampuan L2 dalam mengendalikan besar bobot model.
 
 \subsection{Support Vector Machine}
-Support Vector Machine (SVM) merupakan algoritma klasifikasi yang mencari hiperbidang pemisah dengan margin terbesar antara kelas-kelas data. Data yang berada paling dekat dengan hiperbidang dan berperan dalam menentukan posisi batas pemisah disebut \textit{support vector}. Untuk data yang tidak dapat dipisahkan secara sempurna, SVM menggunakan pendekatan \textit{soft margin} dengan variabel \textit{slack} $\xi_i$ untuk mengakomodasi pelanggaran terhadap margin.
+Support Vector Machine (SVM) mencari hiperbidang pemisah dengan margin lebar antara dua kelas. Pada model linear, $\mathbf{w}$ menentukan arah bidang dan $b$ menggeser posisinya. Batas keputusan berada pada $f(\mathbf{x})=\mathbf{w}^{T}\mathbf{x}+b=0$. Untuk $\mathbf{w}\ne 0$, jarak antara dua bidang paralel dengan skor $-1$ dan $+1$ adalah $2/\lVert\mathbf{w}\rVert$. Sampel dengan koefisien dual positif disebut \textit{support vector} karena ikut menentukan skor keputusan.
 
-Dengan label $y_i\in\{-1,+1\}$ dan parameter $C$ yang mengatur keseimbangan antara lebar margin dan kesalahan klasifikasi, optimasi SVM dirumuskan sebagai berikut.
+Data nyata tidak selalu dapat dipisahkan sempurna. SVM menggunakan \textit{soft margin} dengan variabel \textit{slack} $\xi_i$ untuk mengizinkan pelanggaran margin.
+
+Dengan label $y_i\in\{-1,+1\}$ dan parameter $C$ yang mengatur penalti pelanggaran margin, optimasi SVM dirumuskan sebagai berikut.
 
 \[
 \begin{aligned}
@@ -125,7 +127,14 @@ f(\mathbf{x})=
 \sum_i\alpha_i y_i K(\mathbf{x}_i,\mathbf{x})+b
 \]
 
-Optimasi SVM dapat diselesaikan melalui bentuk dual yang merupakan masalah \textit{quadratic programming}. Salah satu metode yang digunakan untuk menyelesaikannya adalah \textit{Sequential Minimal Optimization} (SMO) \cite{ref:materi-12, ref:platt-1998}.
+Dengan menggunakan pengali Lagrange, optimasi dapat ditulis sebagai masalah dual kuadratik pada koefisien $\alpha_i$:
+\[
+\begin{aligned}
+\max_{\boldsymbol{\alpha}}\quad &\sum_i\alpha_i-\frac{1}{2}\sum_i\sum_j\alpha_i\alpha_j y_i y_j K(\mathbf{x}_i,\mathbf{x}_j),\\
+\text{s.t.}\quad &0\leq\alpha_i\leq C,\qquad \sum_i\alpha_i y_i=0.
+\end{aligned}
+\]
+Batas $C$ membatasi kontribusi tiap sampel. Kendala jumlah berbobot label muncul dari kondisi stasioner terhadap intersep $b$. Masalah kuadratik ini dapat diselesaikan sekaligus pada seluruh vektor koefisien atau dengan \textit{Sequential Minimal Optimization} (SMO), yang memperbarui dua koefisien sekaligus agar kendala jumlah tetap terpenuhi \cite{ref:materi-12, ref:platt-1998}.
 
 \subsubsection{Kernel Linear}
 Kernel linear menggunakan hasil kali dalam antara dua vektor fitur, dengan rumus berikut.
