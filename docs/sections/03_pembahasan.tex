@@ -536,25 +536,31 @@ dan galat simpul sebagai keuntungan pemangkasan beserta ukuran subpohonnya.
 
 Kelas \texttt{LogisticRegressionClassifier}
 (\texttt{src/models/logreg/logreg.py}) mengimplementasikan \textit{logistic
-regression} untuk klasifikasi biner. Pelatihan memakai \textit{gradient
-ascent} untuk memaksimalkan rata-rata \textit{log-likelihood} dikurangi penalti,
-setara dengan meminimalkan \textit{log-loss}. Parameter utamanya adalah
+regression} untuk klasifikasi biner. Pelatihan memaksimalkan rata-rata
+\textit{log-likelihood} dikurangi penalti, setara dengan meminimalkan
+\textit{log-loss}. Parameter utamanya adalah
 \texttt{penalty} (\texttt{None}, \texttt{l1}, \texttt{l2}, atau
 \texttt{elastic\allowbreak net}), \texttt{reg\_strength} ($\lambda$),
-\texttt{l1\_ratio} ($\rho$), \texttt{learning\_rate}, \texttt{max\_iter}, dan
-\texttt{batch\_size}. Kelas ini juga menyediakan \texttt{get\_params} dan
-\texttt{set\_params} agar kompatibel dengan antarmuka \texttt{scikit-learn}.
+\texttt{l1\_ratio} ($\rho$), \texttt{learning\_rate}, \texttt{max\_iter},
+\texttt{batch\_size}, dan \texttt{solver}. Nilai bawaan \texttt{solver} adalah
+\texttt{gradient\_ascent} yang dibahas di bagian ini. Dua pilihan lain,
+\texttt{conjugate\_gradient} dan \texttt{lbfgs}, dibahas pada bagian bonus
+(Bagian~\ref{sec:bonus-logreg-opt}). Kelas ini juga menyediakan
+\texttt{get\_params} dan \texttt{set\_params} agar kompatibel dengan antarmuka
+\texttt{scikit-learn}.
 
 \begin{lstlisting}
 class LogisticRegressionClassifier:
     def __init__(self, learning_rate=0.1, max_iter=2000, penalty=None,
                  reg_strength=0.01, l1_ratio=0.5, tol=1e-7, patience=10,
-                 batch_size=None, random_state=42, record_history=False):
+                 batch_size=None, random_state=42, record_history=False,
+                 solver="gradient_ascent"):
         self.learning_rate, self.max_iter = learning_rate, max_iter
         self.penalty, self.reg_strength, self.l1_ratio = penalty, reg_strength, l1_ratio
         self.tol, self.patience = tol, patience
         self.batch_size, self.random_state = batch_size, random_state
         self.record_history = record_history
+        self.solver = solver
 \end{lstlisting}
 
 Konstruktor menyimpan hiperparameter. Nilai \texttt{batch\_size=None} berarti
@@ -646,7 +652,10 @@ def fit(self, X, y):
     y = np.asarray(y)
     classes, encoded = np.unique(y, return_inverse=True)
     rng = np.random.default_rng(self.random_state)
-    w, b, iterations, converged = self._fit_gradient_ascent(X, encoded.astype(float), rng)
+    if self.solver == "gradient_ascent":
+        w, b, iterations, converged = self._fit_gradient_ascent(X, encoded.astype(float), rng)
+    else:
+        w, b, iterations, converged = self._fit_line_search(X, encoded.astype(float))
     self.coef_ = w[None, :]
     self.intercept_ = np.array([b])
     self.classes_ = classes
@@ -655,7 +664,7 @@ def fit(self, X, y):
 \end{lstlisting}
 
 Metode \texttt{fit} memvalidasi masukan, mengubah dua label kelas menjadi
-$0$ dan $1$, menjalankan \textit{gradient ascent}, lalu menyimpan hasilnya pada
+$0$ dan $1$, menjalankan \textit{solver} yang dipilih, lalu menyimpan hasilnya pada
 \texttt{coef\_}, \texttt{intercept\_}, dan \texttt{classes\_}. Peringatan
 dikeluarkan jika pelatihan berhenti sebelum konvergen, dan kelas selain dua
 ditolak karena implementasi ini khusus biner.
@@ -975,6 +984,31 @@ tepercaya karena pemuatan dapat menjalankan kode.
 
 \subsection{Implementasi Bonus}
 
+Setiap algoritma optimasi dijalankan sebagai pilihan tambahan pada kelas
+model yang sama, sehingga hasilnya dapat dibandingkan langsung dengan cara
+pelatihan dasar. Berikut adalah tabel rangkuman bonus yang diimplementasikan.
+
+\begin{table}[H]
+\centering
+\small
+\caption{Daftar bonus yang dikerjakan}
+\label{tab:bonus}
+\begin{tabularx}{\textwidth}{@{}lX@{}}
+\toprule
+Bonus & Isi dan letak pembahasan \\
+\midrule
+Visualisasi DTL & Gambar pohon C4.5 dengan parameter \texttt{top\_n} dan \texttt{max\_depth} \\
+Video \textit{Logistic Regression} & Kontur \textit{log-loss} dan lintasan $(\theta_0,\theta_1)$ selama pelatihan \\
+Visualisasi SVM & Batas keputusan, margin, dan \textit{support vector} tiap kernel pada dua komponen PCA \\
+Graf \textit{Naive Bayes} & Hubungan kelas dan fitur beserta ketergantungan antarfitur \\
+Optimasi \textit{Logistic Regression} & \textit{Conjugate gradient ascent} dan L-BFGS dengan \textit{line search} \\
+Optimasi SVM & SMO \cite{ref:platt-1998} sebagai pengganti QP langsung, ditambah cache LRU untuk baris kernel \\
+Optimasi \textit{Naive Bayes} & \textit{Tree Augmented Naive Bayes} dengan struktur dari pohon rentang maksimum \\
+\textit{Cost-sensitive} & Pergeseran \textit{threshold} ke $2/3$ karena $C_{FP}=2C_{FN}$ \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
 \subsubsection{Visualisasi Pohon Keputusan}
 
 Visualisasi pohon berada pada \texttt{src/models/c45/visualization.py} dan
@@ -1249,6 +1283,135 @@ pertama lalu mendatar karena gradiennya mengecil di dekat minimum.
 \caption{Kontur \textit{log-loss} dan lintasan parameter pada \textit{frame} akhir video}
 \label{fig:logvideo}
 \end{figure}
+
+\subsubsection{Optimasi Logistic Regression dengan Conjugate Gradient dan L-BFGS}
+\label{sec:bonus-logreg-opt}
+
+\textit{Gradient ascent} pada implementasi dasar memakai laju belajar tetap
+sehingga langkahnya mengecil saat gradien mengecil. Pada data latih, varian
+tanpa penalti belum memenuhi kriteria berhenti setelah 2.000 \textit{epoch}.
+Bonus ini menambahkan dua \textit{solver} yang memakai informasi kelengkungan,
+yaitu \textit{conjugate gradient ascent} (\texttt{conjugate\_gradient}) dan
+L-BFGS (\texttt{lbfgs}). Teorinya dibahas pada
+Bagian~\ref{sec:logreg-optimasi}. Implementasi mengikuti Minka
+\cite{ref:minka-2003}, dengan rumus gradien dari Shalizi
+\cite{ref:shalizi-2012}, sedangkan \textit{two-loop recursion} dan
+\textit{line search} Armijo mengikuti Nocedal dan Wright \cite{ref:nocedal-2006}.
+Keduanya ada di kelas \texttt{LogisticRegressionClassifier} dan dipilih
+lewat parameter \texttt{solver}, sehingga \texttt{predict},
+\texttt{predict\_proba}, \texttt{save}, dan \texttt{load} tidak berubah.
+
+Ada tiga perbedaan dengan \textit{gradient ascent}. Pertama, kedua
+\textit{solver} selalu memakai seluruh data (\texttt{batch\_size=None}) karena
+arah pencarian dan \textit{line search} membutuhkan gradien dan objektif yang
+konsisten antar-iterasi. Kedua, penalti yang didukung hanya tanpa penalti
+dan L2. Penalti L1 tidak dapat diturunkan di nol sehingga kelengkungan di
+sekitarnya tidak terdefinisi. Ketiga, ukuran langkah dipilih oleh \textit{line
+search} sehingga \texttt{learning\_rate} dan \texttt{patience} tidak dipakai.
+Pelatihan berhenti jika norma tak hingga gradien, $\lVert\mathbf{g}\rVert_\infty$,
+sudah tidak lebih dari \texttt{tol}. Bobot dan bias digabung menjadi satu
+vektor $\boldsymbol{\theta}=(\mathbf{w},b)$ dan dimulai dari nol.
+
+\begin{lstlisting}[caption={Arah pencarian L-BFGS dengan \textit{two-loop recursion}}, label={lst:lbfgs}]
+@staticmethod
+def _lbfgs_direction(gradient, history):
+    direction = gradient.copy()
+    alphas = []
+    for s, y, rho in reversed(history):
+        alpha = rho * (s @ direction)
+        alphas.append(alpha)
+        direction -= alpha * y
+    if history:
+        s, y, _ = history[-1]
+        direction *= (s @ y) / (y @ y)
+    for (s, y, rho), alpha in zip(history, reversed(alphas)):
+        beta = rho * (y @ direction)
+        direction += s * (alpha - beta)
+    return direction
+\end{lstlisting}
+
+Fungsi \texttt{\_lbfgs\_direction} menghitung perkalian taksiran $H^{-1}$
+dengan gradien tanpa menyimpan matriks $d\times d$. Variabel
+\texttt{history} berisi paling banyak 10 pasangan $(\mathbf{s}_k,\mathbf{y}_k,\rho_k)$,
+dengan $\mathbf{s}_k$ perubahan parameter, $\mathbf{y}_k$ perubahan gradien, dan
+$\rho_k=1/(\mathbf{s}_k^{T}\mathbf{y}_k)$. \textit{Loop} pertama berjalan dari
+pasangan terbaru ke terlama dan mengurangi komponen gradien searah
+$\mathbf{y}_k$. Hasilnya diskalakan dengan
+$\mathbf{s}^{T}\mathbf{y}/\mathbf{y}^{T}\mathbf{y}$ dari pasangan terakhir
+sebagai taksiran awal $H^{-1}$. \textit{Loop} kedua berjalan dari pasangan
+terlama ke terbaru dan menambahkan kembali komponen searah $\mathbf{s}_k$.
+Biayanya $O(md)$ untuk $m$ pasangan. Karena objektif dimaksimalkan, nilai
+$\mathbf{y}_k$ yang disimpan adalah $\mathbf{g}_k-\mathbf{g}_{k+1}$ agar
+kelengkungannya bernilai positif. Pasangan dengan
+$\mathbf{s}_k^{T}\mathbf{y}_k$ yang tidak positif dibuang. Jika belum ada
+pasangan, arah pencarian sama dengan gradien.
+
+\begin{lstlisting}[caption={Arah \textit{conjugate gradient} Hestenes--Stiefel}, label={lst:cg}]
+@staticmethod
+def _conjugate_direction(gradient, previous_gradient, previous_direction):
+    difference = gradient - previous_gradient
+    denominator = previous_direction @ difference
+    scale = np.linalg.norm(previous_direction) * np.linalg.norm(difference)
+    if abs(denominator) <= 1e-12 * max(scale, np.finfo(float).tiny):
+        return gradient.copy()
+    beta = (gradient @ difference) / denominator
+    return gradient - beta * previous_direction
+\end{lstlisting}
+
+Fungsi \texttt{\_conjugate\_direction} menghitung
+$\mathbf{u}=\mathbf{g}-\beta\,\mathbf{u}^{\mathrm{lama}}$ dengan $\beta$
+Hestenes--Stiefel. Jika penyebutnya hampir nol, fungsi kembali memakai gradien
+agar tidak terjadi pembagian dengan nol. Arah juga diatur ulang ke gradien
+setiap $d+1$ iterasi, sesuai jumlah parameter, karena sifat konjugat lama-lama
+hilang pada fungsi yang tidak kuadratik \cite[bab~5]{ref:nocedal-2006}.
+
+\begin{lstlisting}[caption={Langkah awal \textit{conjugate gradient} dari kelengkungan sepanjang arah}, label={lst:cg-step}]
+step = 1.0
+if self.solver == "conjugate_gradient":
+    probabilities = self._sigmoid(X @ theta[:-1] + theta[-1])
+    projected = X @ direction[:-1] + direction[-1]
+    curvature = np.mean(probabilities * (1 - probabilities) * projected**2)
+    curvature += l2 * (direction[:-1] @ direction[:-1])
+    if np.isfinite(curvature) and curvature > 0:
+        step = (gradient @ direction) / curvature
+    if not np.isfinite(step) or step <= 0:
+        step = 1.0
+\end{lstlisting}
+
+Cuplikan ini menghitung langkah Newton di sepanjang arah $\mathbf{u}$,
+$\eta=\mathbf{g}^{T}\mathbf{u}/(-\mathbf{u}^{T}H\mathbf{u})$. Variabel
+\texttt{projected} berisi $\mathbf{u}^{T}\mathbf{x}_i$ untuk semua baris
+sekaligus, sehingga $-\mathbf{u}^{T}H\mathbf{u}$ didapat dalam $O(nd)$ tanpa
+membentuk Hessian. Objektif pada kelas ini adalah rata-rata, jadi suku data
+memakai \texttt{np.mean}. Suku L2 hanya memakai komponen bobot karena bias
+tidak dikenai penalti. Pada L-BFGS, langkah awalnya 1 karena arah
+pencarian sudah memuat skala dari taksiran $H^{-1}$.
+
+\begin{lstlisting}[caption={\textit{Backtracking line search} dengan syarat Armijo}, label={lst:armijo}]
+def _line_search(self, X, y, theta, objective, gradient, direction, step):
+    slope = gradient @ direction
+    for _ in range(60):
+        candidate = theta + step * direction
+        value, dw, db = self._log_likelihood_gradient(X, y, candidate[:-1], candidate[-1])
+        next_gradient = np.r_[dw, db]
+        if np.isfinite(value) and value >= objective + 1e-4 * step * slope:
+            if np.array_equal(candidate, theta):
+                return None
+            return candidate, value, next_gradient
+        step *= 0.5
+    return None
+\end{lstlisting}
+
+Langkah awal dari kedua \textit{solver} diuji dengan syarat Armijo dengan
+$c=10^{-4}$. Jika objektif belum cukup naik, langkah dibagi dua, paling banyak
+60 kali. Nilai \texttt{None} dikembalikan jika tidak ada langkah yang memenuhi
+syarat atau langkahnya terlalu kecil sampai parameter tidak berubah. Pada kasus
+itu pelatihan berhenti dan \texttt{converged\_} bernilai \texttt{False}.
+Sebelum \textit{line search}, metode \texttt{\_fit\_line\_search} juga
+memeriksa bahwa $\mathbf{g}^{T}\mathbf{u}>0$. Jika arah tidak menaikkan
+objektif, arah diganti gradien dan riwayat L-BFGS dikosongkan. Setiap iterasi
+mencatat \textit{loss} pada \texttt{loss\_history\_}, sehingga kurva
+\textit{loss} ketiga \textit{solver} dapat dibandingkan langsung.
 \subsubsection{Visualisasi Support Vector Machine}
 
 Untuk membandingkan bentuk batas keputusan tiap kernel, notebook menghitung
