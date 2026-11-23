@@ -74,19 +74,16 @@ berpasangan dengan REP tanpa oversampling; SVM memakai keputusan CV berpasangan
 dengan baseline iterasi 04 (16.000 baris); KNN, regresi logistik, dan Naive
 Bayes memakai pemenang `fe_winners`. Tabel keputusan menampilkan kandidat,
 fitur, ambang bila relevan, dan sumber sebelum refit. Holdout hanya untuk
-pelaporan. Visualisasi pohon disimpan terpisah sebagai `output/c45_tree.png`;
-gambar dan video yang dirujuk laporan tersimpan di `docs/figures/`.
+pelaporan. Notebook menyimpan visualisasi pohon sebagai `output/c45_tree.png`.
+Laporan memakai aset di `docs/figures/` dan gambar TAN di `output/tan_structure.png`.
 
 Notebook tidak membaca `ground_truth.csv` atau mengevaluasi prediksi submisi
 terhadap label test. Evaluasi tersebut dilakukan terpisah di luar notebook
 saat label test tersedia. ID test tetap divalidasi terhadap
 `sample_submission.csv` sebelum berkas ditulis.
 
-Validasi alur notebook dan ekspor model dapat dijalankan dengan:
-
-```bash
-.venv/bin/python -m pytest -q tests/test_notebook_flow.py tests/test_submission_model_exports_notebook.py
-```
+Artefak eksperimen lama dan bonus TAN yang sudah ada di `output/` bukan
+bagian dari lima pasangan CSV/PKL final.
 
 Setiap PKL berisi sebuah dictionary dengan model terlatih yang tepat untuk CSV
 pasangannya serta konfigurasi atau referensi prapemrosesan yang diperlukan

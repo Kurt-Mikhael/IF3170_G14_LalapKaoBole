@@ -19,19 +19,21 @@ class LogisticRegressionClassifier:
         batch_size=None,
         random_state=42,
         record_history=False,
+        solver="gradient_ascent",
     ):
         self.learning_rate, self.max_iter = learning_rate, max_iter
         self.penalty, self.reg_strength, self.l1_ratio = penalty, reg_strength, l1_ratio
         self.tol, self.patience = tol, patience
         self.batch_size, self.random_state = batch_size, random_state
         self.record_history = record_history
+        self.solver = solver
 
     def get_params(self, deep=True):
         return {
             name: getattr(self, name)
             for name in (
                 "learning_rate", "max_iter", "penalty", "reg_strength", "l1_ratio",
-                "tol", "patience", "batch_size", "random_state", "record_history",
+                "tol", "patience", "batch_size", "random_state", "record_history", "solver",
             )
         }
 
@@ -52,6 +54,13 @@ class LogisticRegressionClassifier:
             self.__dict__.pop(name, None)
 
     def _validate_params(self):
+        if self.solver not in ("gradient_ascent", "lbfgs", "conjugate_gradient"):
+            raise ValueError("solver must be gradient_ascent, lbfgs, or conjugate_gradient")
+        if self.solver != "gradient_ascent":
+            if self.batch_size is not None:
+                raise ValueError(f"{self.solver} requires batch_size=None")
+            if self.penalty not in (None, "l2"):
+                raise ValueError(f"{self.solver} supports only penalty=None or l2")
         for name in ("learning_rate", "reg_strength", "l1_ratio", "tol"):
             value = getattr(self, name)
             if (
@@ -130,7 +139,10 @@ class LogisticRegressionClassifier:
         encoded = encoded.astype(float)
         rng = np.random.default_rng(self.random_state)
         try:
-            w, b, iterations, converged = self._fit_gradient_ascent(X, encoded, rng)
+            if self.solver == "gradient_ascent":
+                w, b, iterations, converged = self._fit_gradient_ascent(X, encoded, rng)
+            else:
+                w, b, iterations, converged = self._fit_line_search(X, encoded)
         except Exception:
             self._clear_fitted()
             raise
@@ -177,6 +189,115 @@ class LogisticRegressionClassifier:
             if stable_epochs >= self.patience:
                 return w, b, epoch, True
         return w, b, epoch, False
+
+    @staticmethod
+    def _lbfgs_direction(gradient, history):
+        # Two-loop recursion untuk inverse Hessian dari negative log-likelihood.
+        direction = gradient.copy()
+        alphas = []
+        for s, y, rho in reversed(history):
+            alpha = rho * (s @ direction)
+            alphas.append(alpha)
+            direction -= alpha * y
+        if history:
+            s, y, _ = history[-1]
+            direction *= (s @ y) / (y @ y)
+        for (s, y, rho), alpha in zip(history, reversed(alphas)):
+            beta = rho * (y @ direction)
+            direction += s * (alpha - beta)
+        return direction
+
+    @staticmethod
+    def _conjugate_direction(gradient, previous_gradient, previous_direction):
+        # Hestenes-Stiefel dengan konvensi ascent: d = g - beta * d_lama.
+        difference = gradient - previous_gradient
+        denominator = previous_direction @ difference
+        scale = np.linalg.norm(previous_direction) * np.linalg.norm(difference)
+        if abs(denominator) <= 1e-12 * max(scale, np.finfo(float).tiny):
+            return gradient.copy()
+        beta = (gradient @ difference) / denominator
+        return gradient - beta * previous_direction
+
+    def _line_search(self, X, y, theta, objective, gradient, direction, step):
+        # Armijo backtracking memastikan log-likelihood berpenalti meningkat.
+        slope = gradient @ direction
+        for _ in range(60):
+            with np.errstate(over="ignore", invalid="ignore"):
+                candidate = theta + step * direction
+                value, dw, db = self._log_likelihood_gradient(
+                    X, y, candidate[:-1], candidate[-1],
+                )
+            next_gradient = np.r_[dw, db]
+            if (
+                np.isfinite(candidate).all()
+                and np.isfinite(value)
+                and np.isfinite(next_gradient).all()
+                and value >= objective + 1e-4 * step * slope
+            ):
+                if np.array_equal(candidate, theta):
+                    return None
+                return candidate, value, next_gradient
+            step *= 0.5
+        return None
+
+    def _fit_line_search(self, X, y):
+        """L-BFGS/CGA full batch; tol mengukur norma infinity gradien.
+
+        Ukuran langkah dipilih oleh line search, bukan learning_rate.
+        patience hanya digunakan pada gradient ascent.
+        """
+        theta = np.zeros(X.shape[1] + 1)
+        objective, dw, db = self._log_likelihood_gradient(X, y, theta[:-1], theta[-1])
+        gradient = np.r_[dw, db]
+        if not np.isfinite(objective) or not np.isfinite(gradient).all():
+            raise FloatingPointError("Nonfinite objective or gradient; scale features")
+        self.loss_history_ = [-objective]
+        self.parameter_history_ = [(theta[:-1].copy(), 0.0)] if self.record_history else []
+        history, direction = [], gradient.copy()
+        _, l2 = self._regularization()
+        iterations = 0
+        for epoch in range(1, self.max_iter + 1):
+            if np.linalg.norm(gradient, ord=np.inf) <= self.tol:
+                return theta[:-1], float(theta[-1]), iterations, True
+            if self.solver == "lbfgs":
+                direction = self._lbfgs_direction(gradient, history)
+            slope = gradient @ direction
+            if not np.isfinite(direction).all() or not np.isfinite(slope) or slope <= 0:
+                direction = gradient.copy()
+                history.clear()
+            step = 1.0
+            if self.solver == "conjugate_gradient":
+                # Langkah Newton sepanjang arah, tanpa membentuk Hessian penuh.
+                probabilities = self._sigmoid(X @ theta[:-1] + theta[-1])
+                projected = X @ direction[:-1] + direction[-1]
+                curvature = np.mean(probabilities * (1 - probabilities) * projected**2)
+                curvature += l2 * (direction[:-1] @ direction[:-1])
+                if np.isfinite(curvature) and curvature > 0:
+                    step = (gradient @ direction) / curvature
+                if not np.isfinite(step) or step <= 0:
+                    step = 1.0
+            result = self._line_search(X, y, theta, objective, gradient, direction, step)
+            if result is None:
+                return theta[:-1], float(theta[-1]), iterations, False
+            next_theta, objective, next_gradient = result
+            if self.solver == "lbfgs":
+                s, difference = next_theta - theta, gradient - next_gradient
+                curvature = s @ difference
+                scale = np.linalg.norm(s) * np.linalg.norm(difference)
+                # Simpan maksimal 10 pasangan dengan kelengkungan positif.
+                if np.isfinite(curvature) and curvature > 1e-12 * max(scale, np.finfo(float).tiny):
+                    history.append((s, difference, 1.0 / curvature))
+                    history = history[-10:]
+            elif epoch % len(theta) == 0:
+                direction = next_gradient.copy()
+            else:
+                direction = self._conjugate_direction(next_gradient, gradient, direction)
+            theta, gradient, iterations = next_theta, next_gradient, epoch
+            self.loss_history_.append(-objective)
+            if self.record_history:
+                self.parameter_history_.append((theta[:-1].copy(), float(theta[-1])))
+        converged = np.linalg.norm(gradient, ord=np.inf) <= self.tol
+        return theta[:-1], float(theta[-1]), iterations, bool(converged)
 
     def _check_is_fitted(self):
         if not hasattr(self, "fit_status_"):

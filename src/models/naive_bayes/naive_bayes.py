@@ -6,16 +6,15 @@ import numpy as np
 # struktur bintang: kelas -> tiap fitur
 class NaiveBayesClassifier:
     def __init__(self, alpha=1.0, var_smoothing=1e-9, feature_types=None):
-        # alpha: hitungan palsu yang ditambahkan ke tiap nilai (smoothing)
-        # feature_types: "categorical" atau "gaussian" untuk tiap kolom (default: semua categorical)
+        # alpha: hitungan palsu yang ditambahkan ke tiap nilai fitur dan ke tiap kelas (smoothing)
         if alpha < 0:
             raise ValueError("alpha must be non-negative")
         if var_smoothing < 0:
             raise ValueError("var_smoothing must be non-negative")
-        if feature_types is not None:
-            for kind in feature_types:
-                if kind not in ("categorical", "gaussian"):
-                    raise ValueError("feature_types must be 'categorical' or 'gaussian'")
+        if feature_types is not None and any(
+            kind not in ("categorical", "gaussian") for kind in feature_types
+        ):
+            raise ValueError("feature_types must be 'categorical' or 'gaussian'")
 
         self.alpha = alpha
         self.var_smoothing = var_smoothing
@@ -60,19 +59,27 @@ class NaiveBayesClassifier:
             raise ValueError("feature_types must have one entry per column of X")
 
         self.classes_ = np.unique(y)
+        n_classes = len(self.classes_)
 
-        # P(kelas)
+        # Keep upstream categorical baseline priors; explicit types use the legacy mixed-model prior.
         self.class_log_prior_ = []
         for c in self.classes_:
             n_in_class = np.sum(y == c)
-            self.class_log_prior_.append(math.log(n_in_class / n_samples))
+            if self.feature_types is None:
+                prior = (n_in_class + self.alpha) / (n_samples + self.alpha * n_classes)
+            else:
+                prior = n_in_class / n_samples
+            self.class_log_prior_.append(math.log(prior))
 
         self.feature_params_ = []
         for j in range(n_features):
             if feature_types[j] == "categorical":
-                self.feature_params_.append(self._fit_categorical(X[:, j], y))
+                params = self._fit_categorical(X[:, j], y)
+                if self.feature_types is not None:
+                    params["kind"] = "categorical"
             else:
-                self.feature_params_.append(self._fit_gaussian(X[:, j], y))
+                params = self._fit_gaussian(X[:, j], y)
+            self.feature_params_.append(params)
         return self
 
     def _fit_categorical(self, column, y):
@@ -102,41 +109,37 @@ class NaiveBayesClassifier:
             else:
                 log_unseen.append(self._log(self.alpha) - math.log(denominator))
 
-        return {"kind": "categorical", "log_prob": log_prob, "log_unseen": log_unseen}
+        return {"log_prob": log_prob, "log_unseen": log_unseen}
 
     def _fit_gaussian(self, column, y):
         # per kelas: rata-rata dan varians
         not_missing = ~np.isnan(column)
-        extra = 0.0
-        if not_missing.any():
-            extra = self.var_smoothing * np.var(column[not_missing])
+        extra = self.var_smoothing * np.var(column[not_missing]) if not_missing.any() else 0.0
 
         means = []
         variances = []
         for c in self.classes_:
             in_class = column[(y == c) & not_missing]
             if len(in_class) == 0:
-                means.append(None) # kelas ini tidak punya data: netral
+                means.append(None)
                 variances.append(None)
             else:
                 means.append(float(np.mean(in_class)))
                 variances.append(max(float(np.var(in_class)) + extra, 1e-12))
-
         return {"kind": "gaussian", "means": means, "variances": variances}
 
     def _log_likelihood(self, param, k, value):
         # log P(fitur = value | kelas ke-k)
-        if param["kind"] == "categorical":
-            table = param["log_prob"][k]
-            if value in table:
-                return table[value]
-            return param["log_unseen"][k]
-
-        mean = param["means"][k]
-        var = param["variances"][k]
-        if mean is None:
-            return 0.0
-        return -0.5 * math.log(2 * math.pi * var) - (value - mean) ** 2 / (2 * var)
+        if param.get("kind") == "gaussian":
+            mean = param["means"][k]
+            if mean is None:
+                return 0.0
+            var = param["variances"][k]
+            return -0.5 * math.log(2 * math.pi * var) - (value - mean) ** 2 / (2 * var)
+        table = param["log_prob"][k]
+        if value in table:
+            return table[value]
+        return param["log_unseen"][k]
 
     def _log_scores(self, X):
         # skor = log P(kelas) + jumlah log P(fitur | kelas)
@@ -166,7 +169,7 @@ class NaiveBayesClassifier:
                 # semua kelas bernilai 0 (hanya mungkin saat alpha=0): pakai prior
                 probabilities.append([math.exp(p) for p in self.class_log_prior_])
                 continue
-            # kurangi skor terbesar agar exp() tidak underflow
+            # kurangi skor terbesar agar exp() tidak underflow (softmax yang stabil, Blanchard dkk., 2021)
             exps = [math.exp(s - best) for s in scores]
             total = sum(exps)
             probabilities.append([e / total for e in exps])

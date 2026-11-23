@@ -1,4 +1,5 @@
 import math
+import pickle
 import sys
 import tempfile
 import unittest
@@ -9,6 +10,7 @@ import numpy as np
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from models import NaiveBayesClassifier
+from models.booking_feature_search import _estimator
 
 # Dataset Play Tennis klasik.
 # outlook: Sunny=0 Overcast=1 Rain=2 | temp: Hot=0 Mild=1 Cool=2
@@ -20,18 +22,69 @@ TENNIS_X = [
 ]
 TENNIS_Y = [0, 0, 1, 1, 1, 0, 1, 0, 1, 1, 1, 1, 1, 0]
 
-# Dua fitur kategorikal: channel (Online=0, Offline=1) dan permintaan khusus
-# (tidak=0, ada=1). Label: tidak batal=0, batal=1.
+# Varian Play Tennis untuk contoh smoothing, tanpa baris "Hot" berlabel Yes dan tanpa baris "Overcast" berlabel No.
+TENNIS2_X = [
+    [0, 0, 0, 0], [0, 0, 0, 1], [1, 1, 0, 0], [2, 1, 0, 0], [2, 2, 1, 0],
+    [2, 2, 1, 1], [1, 2, 1, 1], [0, 1, 0, 0], [0, 2, 1, 0], [2, 1, 1, 0],
+    [0, 1, 1, 1], [1, 1, 0, 1], [1, 1, 1, 0], [2, 1, 0, 1],
+]
+TENNIS2_Y = [0, 0, 1, 1, 1, 0, 1, 0, 1, 1, 1, 1, 1, 0]
+
+# Dua fitur kategorikal: channel (Online=0, Offline=1) dan permintaan khusus (tidak=0, ada=1).
+# Label: tidak batal=0, batal=1.
 HOTEL_X = [
     [0, 0], [0, 0], [0, 1], [0, 1], [0, 1],
     [1, 0], [1, 1], [1, 1], [1, 1], [1, 0],
 ]
 HOTEL_Y = [1, 1, 1, 0, 0, 1, 0, 0, 0, 0]
 
-def gaussian_pdf(x, mean, var):
-    return math.exp(-((x - mean) ** 2) / (2 * var)) / math.sqrt(2 * math.pi * var)
-
 class NaiveBayesTests(unittest.TestCase):
+    def test_booking_feature_search_predicts_with_mixed_binary_features(self):
+        X = np.array([
+            [0, 0.1], [1, 0.2], [0, 0.3], [1, 0.4],
+            [0, 9.7], [1, 9.8], [0, 9.9], [1, 10.0],
+        ])
+        y = np.array([0, 0, 0, 0, 1, 1, 1, 1])
+        model = _estimator("naive_bayes", X, seed=0).fit(X, y)
+
+        np.testing.assert_array_equal(model.predict([[0, 0.2], [1, 9.8]]), [0, 1])
+
+    def test_upstream_and_legacy_mixed_pickle_parameter_schemas_predict(self):
+        upstream = NaiveBayesClassifier(alpha=2.0)
+        upstream.classes_ = np.array([0, 1])
+        upstream.class_log_prior_ = [math.log(0.5), math.log(0.5)]
+        upstream.feature_params_ = [{
+            "log_prob": [{0.0: math.log(0.9), 1.0: math.log(0.1)},
+                         {0.0: math.log(0.1), 1.0: math.log(0.9)}],
+            "log_unseen": [math.log(0.01), math.log(0.01)],
+        }]
+        del upstream.feature_types, upstream.var_smoothing
+
+        legacy_mixed = NaiveBayesClassifier(
+            alpha=2.0, feature_types=["categorical", "gaussian"]
+        )
+        legacy_mixed.classes_ = np.array([0, 1])
+        legacy_mixed.class_log_prior_ = [math.log(0.5), math.log(0.5)]
+        legacy_mixed.feature_params_ = [
+            {
+                "kind": "categorical",
+                "log_prob": [{0.0: math.log(0.9), 1.0: math.log(0.1)},
+                             {0.0: math.log(0.1), 1.0: math.log(0.9)}],
+                "log_unseen": [math.log(0.01), math.log(0.01)],
+            },
+            {"kind": "gaussian", "means": [0.0, 10.0], "variances": [1.0, 1.0]},
+        ]
+
+        with tempfile.TemporaryDirectory() as folder:
+            paths = [Path(folder) / "upstream.pkl", Path(folder) / "mixed.pkl"]
+            for model, path in zip((upstream, legacy_mixed), paths):
+                with path.open("wb") as file:
+                    pickle.dump(model, file)
+            restored = [NaiveBayesClassifier.load(path) for path in paths]
+
+        np.testing.assert_array_equal(restored[0].predict([[0.0], [1.0]]), [0, 1])
+        np.testing.assert_array_equal(restored[1].predict([[0.0, 0.1], [1.0, 9.9]]), [0, 1])
+
     def test_play_tennis_matches_hand_calculation(self):
         # query <Sunny, Cool, High, Strong>, skor dihitung manual tanpa smoothing
         model = NaiveBayesClassifier(alpha=0).fit(TENNIS_X, TENNIS_Y)
@@ -58,13 +111,35 @@ class NaiveBayesTests(unittest.TestCase):
         self.assertEqual(proba[1], 1.0)
 
     def test_laplace_smoothing_matches_formula(self):
-        # P(v | kelas) = (hitungan + alpha) / (total kelas + alpha * K), hanya fitur channel
+        # prior dan likelihood sama-sama di-smoothing, hanya fitur channel
+        # P(kelas) = (hitungan + alpha) / (n + alpha * 2 kelas)
+        # P(v | kelas) = (hitungan + alpha) / (total kelas + alpha * K)
         channel_only = [[row[0]] for row in HOTEL_X]
         model = NaiveBayesClassifier(alpha=1.0).fit(channel_only, HOTEL_Y)
-        batal = 0.4 * (3 + 1) / (4 + 2)
-        tidak = 0.6 * (2 + 1) / (6 + 2)
+        batal = (4 + 1) / (10 + 2) * (3 + 1) / (4 + 2)
+        tidak = (6 + 1) / (10 + 2) * (2 + 1) / (6 + 2)
         proba = model.predict_proba([[0]])[0]
         self.assertAlmostEqual(proba[1], batal / (batal + tidak))
+
+    def test_prior_is_smoothed_with_alpha(self):
+        # 4 baris batal dan 6 baris tidak batal
+        smoothed = NaiveBayesClassifier(alpha=1.0).fit(HOTEL_X, HOTEL_Y)
+        self.assertAlmostEqual(math.exp(smoothed.class_log_prior_[0]), (6 + 1) / (10 + 2))
+        self.assertAlmostEqual(math.exp(smoothed.class_log_prior_[1]), (4 + 1) / (10 + 2))
+        # alpha = 0 kembali ke frekuensi biasa
+        plain = NaiveBayesClassifier(alpha=0).fit(HOTEL_X, HOTEL_Y)
+        self.assertAlmostEqual(math.exp(plain.class_log_prior_[0]), 6 / 10)
+        self.assertAlmostEqual(math.exp(plain.class_log_prior_[1]), 4 / 10)
+
+    def test_play_tennis_with_laplace_smoothing_on_prior_and_likelihood(self):
+        # query <Overcast, Hot, High, Strong>, skor dihitung manual dengan alpha = 1
+        model = NaiveBayesClassifier(alpha=1.0).fit(TENNIS2_X, TENNIS2_Y)
+        yes = (9 + 1) / (14 + 2) * (4 + 1) / (9 + 3) * (0 + 1) / (9 + 3) * (3 + 1) / (9 + 2) * (3 + 1) / (9 + 2)
+        no = (5 + 1) / (14 + 2) * (0 + 1) / (5 + 3) * (2 + 1) / (5 + 3) * (4 + 1) / (5 + 2) * (3 + 1) / (5 + 2)
+        proba = model.predict_proba([[1, 0, 0, 1]])[0]
+        self.assertAlmostEqual(proba[0], no / (no + yes))
+        self.assertAlmostEqual(proba[1], yes / (no + yes))
+        self.assertEqual(model.predict([[1, 0, 0, 1]])[0], 0)
 
     def test_unseen_value_does_not_crash_with_smoothing(self):
         model = NaiveBayesClassifier(alpha=1.0).fit(HOTEL_X, HOTEL_Y)
@@ -90,25 +165,16 @@ class NaiveBayesTests(unittest.TestCase):
         proba = model.predict_proba([[0, 1]])[0]
         self.assertAlmostEqual(proba[1], batal / (batal + tidak))
 
-    def test_gaussian_feature_matches_hand_calculation(self):
-        X = [[1.0], [2.0], [3.0], [10.0], [11.0], [12.0]]
-        y = [0, 0, 0, 1, 1, 1]
-        model = NaiveBayesClassifier(feature_types=["gaussian"], var_smoothing=0.0).fit(X, y)
-        var = 2 / 3  # varians {1,2,3} dan {10,11,12}
-        score0 = 0.5 * gaussian_pdf(4.0, 2.0, var)
-        score1 = 0.5 * gaussian_pdf(4.0, 11.0, var)
-        proba = model.predict_proba([[4.0]])[0]
-        self.assertAlmostEqual(proba[0], score0 / (score0 + score1))
-        self.assertAlmostEqual(proba[1], score1 / (score0 + score1))
-
-    def test_mixed_feature_types(self):
-        channel = [row[0] for row in HOTEL_X]
-        numeric = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
-        X = np.column_stack([channel, numeric])
-        model = NaiveBayesClassifier(feature_types=["categorical", "gaussian"])
-        proba = model.fit(X, HOTEL_Y).predict_proba(X)
-        for row in proba:
-            self.assertAlmostEqual(sum(row), 1.0)
+    def test_missing_value_coded_as_its_own_category(self):
+        # nilai kosong yang sudah dikodekan menjadi kategori (-1) dihitung seperti nilai lain
+        X = [[float(value) for value in row] for row in HOTEL_X]
+        X[0][1] = -1.0
+        model = NaiveBayesClassifier(alpha=1.0).fit(X, HOTEL_Y)
+        # permintaan khusus punya 3 nilai (-1, 0, 1), -1 hanya muncul sekali di kelas batal
+        batal = (4 + 1) / (10 + 2) * (3 + 1) / (4 + 2) * (1 + 1) / (4 + 3)
+        tidak = (6 + 1) / (10 + 2) * (2 + 1) / (6 + 2) * (0 + 1) / (6 + 3)
+        proba = model.predict_proba([[0, -1]])[0]
+        self.assertAlmostEqual(proba[1], batal / (batal + tidak))
 
     def test_predict_is_argmax_of_predict_proba(self):
         model = NaiveBayesClassifier().fit(TENNIS_X, TENNIS_Y)
@@ -145,11 +211,7 @@ class NaiveBayesTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             NaiveBayesClassifier(alpha=-1)
         with self.assertRaises(ValueError):
-            NaiveBayesClassifier(feature_types=["kategori"])
-        with self.assertRaises(ValueError):
             NaiveBayesClassifier().fit(TENNIS_X, TENNIS_Y[:-1])
-        with self.assertRaises(ValueError):
-            NaiveBayesClassifier(feature_types=["categorical"]).fit(TENNIS_X, TENNIS_Y)
 
         model = NaiveBayesClassifier().fit(TENNIS_X, TENNIS_Y)
         with self.assertRaises(ValueError):

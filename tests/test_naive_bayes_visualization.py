@@ -10,12 +10,9 @@ import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from models.naive_bayes.visualization import (
-    conditional_mutual_information,
-    feature_relations,
-    mutual_information,
-    plot_naive_bayes_graph,
-)
+from models import TreeAugmentedNaiveBayes
+from models.naive_bayes.information import conditional_mutual_information, feature_relations, mutual_information
+from models.naive_bayes.visualization import plot_naive_bayes_graph, plot_tan_structure
 
 # 4000 baris: kelas bergantian 0/1, fitur acak yang tidak berkaitan dengan kelas
 rng = np.random.default_rng(0)
@@ -62,6 +59,18 @@ class NaiveBayesVisualizationTests(unittest.TestCase):
         self.assertTrue(set(names).issubset(texts))
         self.assertIn("batal", texts)
         self.assertEqual(ax.get_title(), "Graf uji")
+
+    def test_tan_structure_plot_has_all_feature_names(self):
+        X = np.column_stack([LABELS.astype(float), RANDOM_BITS, RANDOM_BITS, OTHER_BITS])
+        names = ["salinan_kelas", "x", "x_copy", "y"]
+        model = TreeAugmentedNaiveBayes().fit(X, LABELS)
+        ax = plot_tan_structure(model, names, class_name="batal", title="Struktur TAN")
+        texts = {text.get_text() for text in ax.texts}
+        self.assertTrue(set(names).issubset(texts))
+        self.assertIn("batal", texts)
+        self.assertEqual(ax.get_title(), "Struktur TAN")
+        with self.assertRaises(ValueError):
+            plot_tan_structure(model, ["hanya", "dua"])
 
     def test_invalid_inputs_raise(self):
         with self.assertRaises(ValueError):
