@@ -282,6 +282,53 @@ ambang yang sama, notebook menulis 6.844 prediksi ke
 \textit{leaderboard} dan tidak langsung sebanding dengan rerata validasi
 silang lima lipatan pada Tabel~\ref{tab:cv}.
 
+\paragraph{Pengukuran cache baris kernel.}
+Untuk mengukur dampak cache, SMO dengan matriks penuh pada revisi
+\texttt{b70181c} dibandingkan dengan SMO yang memakai cache LRU. Kedua jalur
+memakai parameter SMO--RBF, bobot fitur, dan ambang $-0{,}1875$ dari
+konfigurasi 04. Pembagian dan pengambilan sampel memakai prosedur dan
+\textit{seed} yang sama seperti di atas, tetapi dijalankan dengan
+\texttt{scikit-learn} 1.9.1, \texttt{pandas} 3.1.1, dan NumPy 2.5.4.
+Pada lingkungan ini, \textit{holdout} berisi 5.474 baris, bukan 5.475.
+Skor di sini hanya dibandingkan antarmode pada jumlah sampel yang sama,
+bukan dengan skor 0,830948 dari eksekusi notebook sebelumnya.
+
+Setiap mode dijalankan dalam satu proses Linux terpisah pada Intel Core
+i7-13620H, dengan satu utas BLAS. Waktu yang dicatat hanya meliputi
+\texttt{fit}. Memori dicatat sebagai puncak \textit{resident set size} (RSS)
+proses hingga \texttt{fit} selesai, sehingga mencakup memori prapemrosesan,
+matriks atau cache, dan alokasi temporer. Angka RSS bukan ukuran cache saja.
+
+\begin{table}[H]
+\centering
+\small
+\caption{Perbandingan matriks penuh dan cache LRU pada 4.000 sampel latih}
+\label{tab:svm-cache}
+\begin{tabular}{@{}lrrr@{}}
+\toprule
+Mode penyimpanan & Waktu latih (detik) & Puncak RSS (MiB) & F1 makro \\
+\midrule
+Matriks penuh & 4,60 & 563,9 & 0,800391 \\
+Cache LRU 32 MiB & 25,49 & 228,6 & 0,800391 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Pada 4.000 sampel dengan 29 fitur, anggaran 32 MiB memaksa penggunaan
+cache karena lebih kecil dari ukuran matriks penuh.
+Kedua model konvergen dan semua label prediksi identik pada ambang terpilih
+dan pada ambang nol. Skor keputusan tidak identik: selisih absolut terbesar
+adalah 0,004014. Cache menurunkan puncak RSS proses sekitar 59\%, tetapi
+pelatihan memakan waktu sekitar 5,5 kali lebih lama pada pengukuran ini.
+
+Pada 16.000 sampel dengan 30 fitur, matriks penuh selesai dalam 51,72 detik
+dengan puncak RSS 5,92 GiB. Percobaan dengan cache 512 MiB tidak
+selesai dalam batas 300 detik. Kesetaraan prediksi pada ukuran tersebut
+belum dapat disimpulkan. Jalur matriks penuh tetap menjadi bawaan
+(\texttt{cache\_size\_mb=None}); anggaran cache ditetapkan secara eksplisit
+jika RAM terbatas. Angka waktu dan RSS di atas berasal dari satu pengukuran
+per mode dan dapat berbeda pada perangkat lain.
+
 \subsubsection{Bayesian Network (Naive Bayes)}
 \paragraph{Rancangan}
 Pemilihan konfigurasi Naive Bayes memakai lipatan pertama dari \textit{StratifiedGroupKFold} dengan 5 lipatan, \textit{seed} 42, dan baris yang identik dikelompokkan agar tidak bocor ke data validasi. Angka eksplorasi Naive Bayes berikut berasal dari eksekusi \texttt{scikit-learn} 1.9.1: 21.897 baris latih dan 5.476 baris validasi, dengan proporsi pembatalan 0,328 pada keduanya. Seluruh pilihan (representasi fitur kontinu, jumlah \textit{bin}, dan $\alpha$) ditentukan dari data validasi, bukan dari data uji. Kolom F1 pada tabel di bawah adalah F1 untuk kelas batal.

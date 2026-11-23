@@ -708,14 +708,32 @@ self._alphas = np.zeros(len(X))
 \end{lstlisting}
 
 \texttt{np.unique} mengurutkan label dan \texttt{np.where} memberi tanda
-$-1$ pada kelas pertama serta $+1$ pada kelas kedua. Metode \texttt{fit}
-menghitung matriks $K$ dari seluruh pasangan data latih sebelum menjalankan
-\texttt{\_fit\_qp} atau \texttt{\_fit\_smo}. Keduanya menyimpan $K$ dengan
-ukuran $n\times n$, dan QP juga membentuk matriks $Q$ dengan ukuran yang sama.
-Jadi, meskipun SMO memperbarui hanya dua koefisien per langkah, kedua
-implementasi tetap memakai memori $O(n^2)$. Pada 16.000 baris, satu matriks
-berisi bilangan \textit{float64} saja memerlukan sekitar 2,05 GB, belum
-termasuk alokasi temporer.
+$-1$ pada kelas pertama serta $+1$ pada kelas kedua. Solver QP membentuk
+matriks kernel penuh $K$ berukuran $n\times n$ dan matriks $Q$. Solver SMO
+juga memakai matriks penuh kecuali jalur cache LRU dipilih berdasarkan anggaran.
+Pada jalur tersebut, SMO meminta baris kernel saat diperlukan. Elemen
+$K_{ij}=K(\mathbf{x}_i,\mathbf{x}_j)$ disimpan sebagai \textit{float64},
+dengan indeks baris data latih sebagai kunci. Cache bersifat lokal pada setiap
+pemanggilan \texttt{fit}: hit memperbarui posisi baris menjadi paling baru,
+sedangkan miss menghitung baris tersebut dan, jika kapasitas penuh,
+mengeluarkan baris yang paling lama tidak digunakan.
+
+Parameter \texttt{cache\_size\_mb} menetapkan anggaran dalam MiB, misalnya
+\texttt{cache\_size\_mb=512}. Untuk anggaran $M$ MiB, tersedia $B=\lfloor M\cdot 2^{20}\rfloor$
+byte untuk nilai kernel. SMO memakai matriks penuh jika $8n^2\le B$;
+jika tidak, cache menyimpan paling banyak $\lfloor B/(8n)\rfloor$ baris.
+Nilai bawaan \texttt{None} selalu memilih matriks penuh. Jika satu baris saja tidak
+muat, tidak ada baris yang dipertahankan. Pada 16.000 baris, matriks penuh
+memerlukan sekitar 1,91 GiB, sedangkan anggaran 512 MiB menampung paling banyak
+4.194 baris. Angka ini hanya mencakup larik baris kernel, bukan seluruh RAM:
+metadata objek cache dan alokasi temporer memerlukan memori tambahan. Miss
+cache juga memerlukan perhitungan ulang kernel. Pada RBF, nilai
+$\lVert\mathbf{x}_j\rVert^2$ dihitung sekali untuk setiap sampel; baris baru
+memakai kembali nilai tersebut melalui identitas
+$\lVert\mathbf{x}_i-\mathbf{x}_j\rVert^2 =
+\lVert\mathbf{x}_i\rVert^2+\lVert\mathbf{x}_j\rVert^2-2\mathbf{x}_i^\top\mathbf{x}_j$.
+Jalur QP tetap memakai matriks penuh dan mengabaikan anggaran cache saat
+pelatihan.
 
 Pada kernel polinomial dan RBF, nilai \texttt{gamma} dapat diberikan langsung
 atau dihitung dari data latih. Opsi \texttt{auto} memakai $1/p$ untuk $p$
@@ -752,24 +770,33 @@ memeriksa kondisi Karush--Kuhn--Tucker (KKT) dengan toleransi \texttt{tol}.
 \Needspace{13\baselineskip}
 SMO mengambil pendekatan lain dengan memperbarui dua koefisien setiap kali.
 
-\begin{lstlisting}[caption={Pembaruan koefisien pada SMO}, label={lst:svm-smo}]
-k11, k12, k22 = K[i, i], K[i, j], K[j, j]
-eta = k11 + k22 - 2 * k12  # Pair-direction objective curvature.
-if eta > 0:
-    new_j = np.clip(aj + yj * (Ei - Ej) / eta, L, H)
-else:
-    ...  # Compare the objective at L and H.
-# ...
-new_i = ai + s * (aj - new_j)
-\end{lstlisting}
-
-Fungsi \texttt{take} di dalam \texttt{\_fit\_smo} menetapkan interval
-$[L,H]$ berdasarkan label pasangan. Untuk kurvatur positif, \texttt{np.clip}
-membatasi pembaruan koefisien kedua ke interval itu. Untuk kurvatur nol
-atau negatif, kode lengkap membandingkan objektif di kedua ujung interval.
-Koefisien pertama lalu disesuaikan dengan $s=y_i y_j$ agar jumlah koefisien
-berbobot label tidak berubah. Setiap pembaruan yang berhasil juga mengubah
-intersep dan galat prediksi yang disimpan oleh SMO.
+Misalkan $i,j$ adalah pasangan yang dipilih, $E_k=f(\mathbf{x}_k)-y_k$,
+$s=y_i y_j$, dan $[L,H]$ interval layak koefisien kedua. Pembaruan matematisnya
+adalah
+\[
+\begin{aligned}
+\eta &= K_{ii}+K_{jj}-2K_{ij},\\
+\alpha_j^{\mathrm{baru}} &= \operatorname{clip}_{[L,H]}
+\left(\alpha_j^{\mathrm{lama}}+\frac{y_j(E_i-E_j)}{\eta}\right),\\
+\alpha_i^{\mathrm{baru}} &= \alpha_i^{\mathrm{lama}}+
+s(\alpha_j^{\mathrm{lama}}-\alpha_j^{\mathrm{baru}}).
+\end{aligned}
+\]
+Jika $\eta\leq0$, solver membandingkan objektif pada kedua ujung interval.
+Untuk memperbarui galat seluruh sampel, hanya dua baris kernel yang diperlukan.
+Jika $\Delta\alpha=\alpha^{\mathrm{baru}}-\alpha^{\mathrm{lama}}$ dan
+$\Delta b=b^{\mathrm{baru}}-b^{\mathrm{lama}}$, maka untuk setiap sampel $k$
+berlaku
+\[
+E_k^{\mathrm{baru}}=E_k^{\mathrm{lama}}+y_i\Delta\alpha_i K_{ik}
+                     +y_j\Delta\alpha_j K_{jk}+\Delta b.
+\]
+Pemeriksaan KKT tetap memakai kondisi yang sama. Pada jalur cache, skor
+latih untuk pemeriksaan ini dihitung ulang dengan menjumlahkan kontribusi
+baris kernel dengan $\alpha_i\ne0$, tanpa membentuk matriks penuh. Cache
+tidak mengubah objektif dual, ambang prediksi, atau cara inferensi.
+Perbedaan urutan operasi bilangan titik mengambang dapat mengubah hasil
+pembulatan dan lintasan iterasi.
 
 SMO memulai dengan memindai seluruh sampel, lalu memindai koefisien bebas
 ($0<\alpha_i<C$) dan kembali ke pemindaian penuh jika tidak ada pembaruan.

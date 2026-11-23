@@ -46,10 +46,13 @@ ulang berdasarkan biaya pada data validasi. Pada \textit{Naive Bayes}, model yan
 antarfitur, seperti yang ditunjukkan graf pada bagian hasil, dapat diuji untuk
 memastikan penyebab skornya yang lebih rendah.
 
-Dari sisi implementasi, pelatihan SVM telah mencapai 16.000 baris, tetapi
-matriks kernel penuh masih memerlukan memori $O(n^2)$. Menghitung baris kernel
-saat diperlukan dan menyimpan sebagian hasil di \textit{cache} dapat mengurangi
-kebutuhan memori SMO sebelum pelatihan dicoba pada seluruh data.
+Dari sisi implementasi, cache LRU membatasi memori untuk penyimpanan nilai
+kernel SMO. Pada pengukuran dengan 4.000 sampel, penggunaan RAM proses turun
+dengan label prediksi yang sama, tetapi pelatihan lebih lama
+(Tabel~\ref{tab:svm-cache}). Pada 16.000 sampel, pengujian cache 512 MiB tidak
+selesai dalam batas waktu pengukuran. Karena itu, penggunaan cache lebih
+sesuai saat batas RAM menjadi pertimbangan utama. Matriks penuh tetap
+menjadi bawaan SMO dan selalu dipakai pada QP.
 Implementasi \textit{Logistic Regression} dengan \textit{Elastic Net} juga jauh
 lebih lambat daripada scikit-learn sehingga dapat dipercepat dengan
 laju belajar adaptif atau \textit{solver} yang lebih efisien. Terakhir, laporan

@@ -253,10 +253,11 @@ memindai seluruh sampel atau hanya vektor pendukung bebas. Implementasi
 memeriksa residual KKT sebelum menyatakan konvergensi dan juga membatasi
 jumlah iterasi. Karena submasalahnya dapat diselesaikan secara analitik,
 SMO tidak membutuhkan penyelesai QP numerik di setiap langkah. Platt
-menghitung nilai kernel saat diperlukan sehingga penyimpanan dapat tumbuh
-linear terhadap jumlah sampel \cite{ref:platt-1998}. Sebaliknya,
-implementasi proyek menyimpan seluruh matriks kernel dan tetap menggunakan
-memori $O(n^2)$.
+menunjukkan bahwa SMO tidak perlu menyimpan matriks kernel penuh
+\cite{ref:platt-1998}. Implementasi proyek memanfaatkan sifat ini dengan
+menyimpan sebagian baris kernel dalam cache \textit{least recently used}
+(LRU) ketika anggaran memori ditetapkan dan matriks penuh melampauinya.
+Baris yang tidak ada di cache dihitung kembali saat diperlukan.
 
 \subsection{Bayesian Network (Naive Bayes)}
 \textit{Naive Bayes} merupakan algoritma klasifikasi probabilistik yang didasarkan pada teorema Bayes dengan asumsi bahwa setiap fitur bersifat independen secara kondisional terhadap kelas. Dalam representasi \textit{Bayesian network}, kelas menjadi induk dari seluruh fitur, sehingga hubungan ketergantungan antarfitur tidak dimodelkan secara langsung.
