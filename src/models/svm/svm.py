@@ -6,10 +6,18 @@ from pathlib import Path
 
 import numpy as np
 
-from .kernel import gaussian_kernel, linear_kernel, polynomial_kernel
+from .kernel import (
+    _gaussian_from_norms,
+    _KernelRowCache,
+    gaussian_kernel,
+    linear_kernel,
+    polynomial_kernel,
+)
 
 
 class SVM:
+    cache_size_mb = None  # Keep dense behavior, including for previously saved models.
+
     def __init__(
         self,
         kernel="linear",
@@ -22,6 +30,7 @@ class SVM:
         max_passes=10,
         random_state=42,
         solver="smo",
+        cache_size_mb=cache_size_mb,
     ):
         self.kernel, self.C, self.degree, self.gamma = kernel, C, degree, gamma
         self.coef0, self.tol, self.max_iter = coef0, tol, max_iter
@@ -30,6 +39,7 @@ class SVM:
             random_state,
             solver,
         )
+        self.cache_size_mb = cache_size_mb
 
     def get_params(self, deep=True):
         return {
@@ -45,6 +55,7 @@ class SVM:
                 "max_passes",
                 "random_state",
                 "solver",
+                "cache_size_mb",
             )
         }
 
@@ -137,6 +148,14 @@ class SVM:
             or self.coef0 < 0
         ):
             raise ValueError("coef0 must be a nonnegative finite number")
+        cache_size_mb = self.cache_size_mb
+        if cache_size_mb is not None and (
+            isinstance(cache_size_mb, bool)
+            or not isinstance(cache_size_mb, Real)
+            or not isfinite(float(cache_size_mb))
+            or cache_size_mb <= 0
+        ):
+            raise ValueError("cache_size_mb must be None or a positive finite number")
 
     def fit(self, X, y):
         self._clear_fitted()
@@ -162,18 +181,44 @@ class SVM:
             gamma = 1.0 / X.shape[1]
         else:
             gamma = float(self.gamma)
-        if self.kernel in ("polynomial", "poly"):
-            K = polynomial_kernel(
-                X, X, degree=self.degree, gamma=gamma, coef0=self.coef0
-            )
-        elif self.kernel in ("gaussian", "rbf"):
-            K = gaussian_kernel(X, X, gamma=gamma)
+        n = len(X)
+
+        # Each cached row is n float64 values; compare before allocating the Gram matrix.
+        cache_size_mb = self.cache_size_mb
+        dense = self.solver == "qp" or cache_size_mb is None or (
+            8 * n * n <= cache_size_mb * 1024**2
+        )
+        if dense:
+            if self.kernel in ("polynomial", "poly"):
+                K = polynomial_kernel(
+                    X, X, degree=self.degree, gamma=gamma, coef0=self.coef0
+                )
+            elif self.kernel in ("gaussian", "rbf"):
+                K = gaussian_kernel(X, X, gamma=gamma)
+            else:
+                K = linear_kernel(X, X)
+            if not np.isfinite(K).all():
+                raise ValueError(
+                    "kernel matrix overflowed; rescale input data or parameters"
+                )
         else:
-            K = linear_kernel(X, X)
-        if not np.isfinite(K).all():
-            raise ValueError(
-                "kernel matrix overflowed; rescale input data or parameters"
-            )
+            if self.kernel in ("gaussian", "rbf"):
+                squared_norms = np.sum(X**2, axis=1)
+
+            def make_row(index):
+                row = X[index : index + 1]
+                if self.kernel in ("polynomial", "poly"):
+                    return polynomial_kernel(
+                        row, X, degree=self.degree, gamma=gamma, coef0=self.coef0
+                    )[0]
+                if self.kernel in ("gaussian", "rbf"):
+                    return _gaussian_from_norms(
+                        row, X, squared_norms[index], squared_norms, gamma
+                    )[0]
+                return linear_kernel(row, X)[0]
+
+            capacity = int(cache_size_mb * 1024**2 // (8 * n))
+            K = _KernelRowCache(capacity, make_row)
         self._X_train, self._y_train, self.classes_ = X.copy(), signs, classes
         self.n_features_in_ = X.shape[1]
         self._gamma = gamma
@@ -251,6 +296,7 @@ class SVM:
 
     def _fit_smo(self, K, rng):
         y, a, C = self._y_train, self._alphas, float(self.C)
+        kernel_row = K.row if isinstance(K, _KernelRowCache) else K.__getitem__
         bound_eps = min(1e-10, C * 1e-8)
         errors = -y.copy()
         examine_all, passes, iterations = True, 0, 0
@@ -268,7 +314,8 @@ class SVM:
                 L, H = max(0.0, ai + aj - C), min(C, ai + aj)
             if L >= H:
                 return False
-            k11, k12, k22 = K[i, i], K[i, j], K[j, j]
+            row_i, row_j = kernel_row(i), kernel_row(j)
+            k11, k12, k22 = row_i[i], row_i[j], row_j[j]
             eta = k11 + k22 - 2 * k12  # Pair-direction objective curvature.
             if eta > 0:
                 new_j = np.clip(aj + yj * (Ei - Ej) / eta, L, H)
@@ -314,8 +361,11 @@ class SVM:
             else:
                 self._b = (b1 + b2) / 2
             a[i], a[j] = new_i, new_j
+            # E'_k - E_k = y_i * delta_a_i * K_ik + y_j * delta_a_j * K_jk + delta_b.
             errors[:] += (
-                yi * (new_i - ai) * K[i] + yj * (new_j - aj) * K[j] + (self._b - old_b)
+                yi * (new_i - ai) * row_i
+                + yj * (new_j - aj) * row_j
+                + (self._b - old_b)
             )
             return True
 
@@ -365,7 +415,14 @@ class SVM:
     def _kkt_residual(self, K):
         a, y = self._alphas, self._y_train
         bound_eps = min(1e-10, float(self.C) * 1e-8)
-        violation = y * (K @ (a * y) + self._b) - 1
+        # Check exact kernel KKT margins, streaming only nonzero dual weights when cached.
+        if isinstance(K, _KernelRowCache):
+            raw = np.zeros(len(y))
+            for i in np.flatnonzero(a):
+                raw += (a[i] * y[i]) * K.row(i)
+        else:
+            raw = K @ (a * y)
+        violation = y * (raw + self._b) - 1
         lower = np.where(a < self.C - bound_eps, -violation, 0)
         upper = np.where(a > bound_eps, violation, 0)
         return float(max(np.max(lower), np.max(upper)))
