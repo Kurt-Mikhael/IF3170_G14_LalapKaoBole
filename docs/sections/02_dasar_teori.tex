@@ -141,20 +141,9 @@ f(\mathbf{x})=
 
 Koefisien $\alpha_i$ menentukan besar kontribusi sampel ke-$i$.
 Sampel dengan $\alpha_i>0$ disebut \textit{support vector} karena muncul
-dalam perhitungan skor. Dengan pengali Lagrange, pelatihan dapat dirumuskan
-sebagai masalah optimasi kuadratik dalam koefisien $\alpha_i$:
-\[
-\begin{aligned}
-\max_{\boldsymbol{\alpha}}\quad &\sum_i\alpha_i-\frac{1}{2}\sum_i\sum_j\alpha_i\alpha_j y_i y_j K(\mathbf{x}_i,\mathbf{x}_j),\\
-\text{s.t.}\quad &0\leq\alpha_i\leq C,\qquad \sum_i\alpha_i y_i=0.
-\end{aligned}
-\]
-Setiap koefisien berada di antara 0 dan $C$. Jumlah koefisien berbobot
-label harus nol. Syarat ini berasal dari turunan fungsi Lagrange terhadap
-intersep $b$ yang bernilai nol pada solusi. Optimasi dapat memperbarui
-seluruh vektor koefisien sekaligus. Alternatifnya, \textit{Sequential
-Minimal Optimization} (SMO) memperbarui dua koefisien setiap kali agar
-jumlah berbobot label tetap nol \cite{ref:materi-12, ref:platt-1998}.
+dalam perhitungan skor. Kernel menentukan bentuk batas keputusan, sedangkan
+QP langsung dan SMO menentukan cara memperoleh koefisien untuk kernel yang
+sama.
 
 \subsubsection{Kernel Linear}
 Kernel linear menggunakan hasil kali dalam antara dua vektor fitur, dengan rumus berikut.
@@ -192,6 +181,82 @@ Semakin besar $\gamma$, semakin cepat nilai kernel turun ketika jarak
 bertambah. Akibatnya, pengaruh tiap sampel lebih terbatas pada lingkungan
 terdekatnya. Batas keputusan bisa lebih fleksibel, tetapi juga bisa terlalu
 mengikuti data latih (\textit{overfitting}).
+
+\subsubsection{Quadratic Programming (QP)}
+\label{sec:svm-qp}
+Pengali Lagrange mengubah masalah primal SVM menjadi masalah dual dengan
+objektif kuadratik dan kendala linear \cite[salindia~24--26 dan~38--40]{ref:materi-12}.
+Dengan $Q_{ij}=y_i y_j K(\mathbf{x}_i,\mathbf{x}_j)$, bentuk minimisasinya
+adalah
+\begin{equation}
+\begin{aligned}
+\min_{\boldsymbol{\alpha}}\quad &\frac{1}{2}\boldsymbol{\alpha}^{T}Q\boldsymbol{\alpha}-\mathbf{1}^{T}\boldsymbol{\alpha},\\
+\text{s.t.}\quad &\mathbf{y}^{T}\boldsymbol{\alpha}=0,\\
+&0\leq\alpha_i\leq C,\quad i=1,\ldots,n.
+\end{aligned}
+\end{equation}
+Kendala $\mathbf{y}^{T}\boldsymbol{\alpha}=0$ berasal dari syarat bahwa
+turunan Lagrangian terhadap intersep $b$ bernilai nol. Untuk kernel dengan
+matriks Gram semidefinit positif, $Q$ juga semidefinit positif sehingga
+masalah dual bersifat konveks. Pada solusi, kondisi Karush--Kuhn--Tucker
+(KKT) menghubungkan posisi sampel terhadap margin dengan koefisiennya
+\cite[bagian~1.1]{ref:platt-1998}:
+\[
+y_i f(\mathbf{x}_i)
+\begin{cases}
+\geq 1, & \alpha_i=0,\\
+=1, & 0<\alpha_i<C,\\
+\leq 1, & \alpha_i=C.
+\end{cases}
+\]
+
+QP adalah formulasi masalah, bukan nama satu metode penyelesaian. Opsi
+QP pada proyek ini menggunakan gradien terproyeksi dengan momentum.
+Pada setiap iterasi, metode mengambil langkah melawan gradien
+$Q\boldsymbol{\alpha}-\mathbf{1}$ pada titik iterasi, lalu memproyeksikan
+seluruh vektor ke himpunan yang memenuhi kedua kendala. Intersep dapat
+diperoleh dari vektor pendukung bebas, karena pada titik tersebut
+$f(\mathbf{x}_i)=y_i$. Solver memeriksa residual KKT terhadap toleransi
+untuk menentukan konvergensi. Penyimpanan penuh matriks $Q$ membutuhkan
+memori $O(n^2)$.
+
+\subsubsection{Sequential Minimal Optimization (SMO)}
+\label{sec:svm-smo}
+Platt mengusulkan SMO untuk menyelesaikan QP dual melalui submasalah dua
+koefisien \cite[bagian~2]{ref:platt-1998}. Mengubah satu koefisien saja akan
+melanggar kendala $\sum_i y_i\alpha_i=0$. Jika dua koefisien dipilih dan
+sisanya tetap, kendala tersebut menetapkan hubungan
+\[
+\alpha_i^{\mathrm{baru}}=\alpha_i^{\mathrm{lama}}+y_i y_j(\alpha_j^{\mathrm{lama}}-\alpha_j^{\mathrm{baru}}).
+\]
+Kedua koefisien harus tetap berada pada $[0,C]$. Syarat ini menghasilkan
+interval $[L,H]$ untuk $\alpha_j^{\mathrm{baru}}$. Jika label pasangan sama,
+jumlah koefisien tetap; jika berbeda, selisihnya tetap. Dengan demikian,
+objektif pada interval tersebut tinggal berupa fungsi kuadratik satu
+variabel. Dengan galat $E_k=f(\mathbf{x}_k)-y_k$ dan kurvatur
+$\eta=K_{ii}+K_{jj}-2K_{ij}$, kandidat untuk $\eta>0$ adalah
+\[
+\alpha_j^{\mathrm{baru}}=\operatorname{clip}_{[L,H]}
+\left(\alpha_j^{\mathrm{lama}}+\frac{y_j(E_i-E_j)}{\eta}\right),
+\qquad K_{ij}=K(\mathbf{x}_i,\mathbf{x}_j).
+\]
+Operator $\operatorname{clip}_{[L,H]}$ membatasi kandidat ke interval
+layak. Jika $\eta\leq 0$, SMO membandingkan nilai objektif pada $L$ dan
+$H$. Intersep kemudian diperbarui agar vektor pendukung bebas pada
+pasangan tersebut memenuhi $y_k f(\mathbf{x}_k)=1$. Jika keduanya berada
+pada batas, implementasi mengambil titik tengah dari dua kandidat
+intersep.
+
+Pemilihan pasangan berawal dari satu sampel yang melanggar KKT. SMO
+mengutamakan pasangan dengan selisih galat yang besar, dan bergantian
+memindai seluruh sampel atau hanya vektor pendukung bebas. Implementasi
+memeriksa residual KKT sebelum menyatakan konvergensi dan juga membatasi
+jumlah iterasi. Karena submasalahnya dapat diselesaikan secara analitik,
+SMO tidak membutuhkan penyelesai QP numerik di setiap langkah. Platt
+menghitung nilai kernel saat diperlukan sehingga penyimpanan dapat tumbuh
+linear terhadap jumlah sampel \cite{ref:platt-1998}. Sebaliknya,
+implementasi proyek menyimpan seluruh matriks kernel dan tetap menggunakan
+memori $O(n^2)$.
 
 \subsection{Bayesian Network (Naive Bayes)}
 \textit{Naive Bayes} merupakan algoritma klasifikasi probabilistik yang didasarkan pada teorema Bayes dengan asumsi bahwa setiap fitur bersifat independen secara kondisional terhadap kelas. Dalam representasi \textit{Bayesian network}, kelas menjadi induk dari seluruh fitur, sehingga hubungan ketergantungan antarfitur tidak dimodelkan secara langsung.

@@ -10,7 +10,7 @@
 \centering
 
 \includegraphics[width=\textwidth]{diagram-alur.drawio.png}`'
-\caption{Diagram alur eksperimen}
+\caption{Alur perbandingan awal antarmodel. Eksperimen lanjutan SVM menggunakan data pengembangan dan \textit{holdout} terpisah.}
 \label{fig:alur}
 \end{figure}
 
@@ -36,9 +36,11 @@ data validasi dan data uji tidak bocor ke proses pelatihan.
 Setelah preprocessing, beberapa algoritma buatan sendiri dan implementasi
 scikit-learn dilatih dan dibandingkan. Pembagian data serta validasi
 digunakan untuk memilih konfigurasi dan model berdasarkan metrik evaluasi,
-terutama \textit{Macro F1}. Model terpilih kemudian dilatih kembali
-menggunakan seluruh data latih, diterapkan pada data uji, dan menghasilkan
-prediksi dalam berkas \textit{submission}. Dengan demikian, alur ini menjaga
+terutama \textit{Macro F1}. Model untuk \textit{submission} diterapkan pada
+data uji setelah pelatihan. Jumlah baris yang digunakan bergantung pada
+model. Untuk SVM terpilih, notebook mengambil sampel terstratifikasi dari
+seluruh \texttt{train.csv} dan melatih ulang model hanya pada sampel itu.
+Dengan demikian, alur ini menjaga
 pemisahan data sekaligus memastikan proses dari data mentah hingga prediksi
 akhir dapat ditelusuri.
 
@@ -95,6 +97,11 @@ kontinu menjadi kategori dengan \textit{binning} kuantil sebanyak 20
 \paragraph{\textit{Feature Engineering}.} Pada C4.5, ditambahkan penanda
 \texttt{special\_requests} kosong, total malam, total tamu, indeks bulan
 kedatangan, hari dalam seminggu, dan tarif per orang.
+Pada SVM RBF terpilih, nilai hasil standardisasi untuk
+\texttt{days\_before\_arrival} dan \texttt{nightly\_rate\_idr} dikalikan
+dua, sedangkan \texttt{special\_requests} dikalikan 1,5. Penskalaan ulang
+ini memperbesar pengaruh ketiga fitur pada jarak dalam kernel RBF. Bobot
+tersebut diterapkan pada fitur, bukan pada kelas atau baris latih.
 
 \paragraph{\textit{Class Imbalance}.} Sekitar 33\% pemesanan dibatalkan. Karena
 metrik utama adalah \textit{Macro F1} yang memberi bobot sama pada kedua kelas,
@@ -129,7 +136,7 @@ Algoritma & Nilai hilang & Kategorikal & Fitur numerik \\
 KNN & Median dan modus & \textit{One-hot} & Standardisasi \\
 C4.5 & Bobot pecahan & Satu cabang per nilai & Tanpa penskalaan, ditambah fitur turunan \\
 \textit{Logistic Regression} & Median dan modus & \textit{One-hot} & Standardisasi \\
-SVM & Median dan modus & \textit{One-hot} & Standardisasi \\
+SVM & Median dan modus & \textit{One-hot} & Standardisasi dan penskalaan ulang tiga fitur pada model RBF terpilih \\
 \textit{Naive Bayes} & Dilewati & Kode bilangan & \textit{Binning} 20 kuantil \\
 \bottomrule
 \end{tabularx}
@@ -684,7 +691,9 @@ Kelas \texttt{SVM} pada \texttt{src/models/svm/svm.py} menerima dua kelas
 dan fitur numerik yang terhingga. Imputasi, \textit{one-hot encoding}, dan
 standardisasi dilakukan di luar kelas. Parameter \texttt{kernel} memilih
 kernel linear, polinomial, atau Gaussian (RBF). Parameter \texttt{solver}
-menentukan cara mencari koefisien, yaitu QP atau SMO.
+menentukan cara mencari koefisien: QP dengan gradien terproyeksi
+(Bagian~\ref{sec:svm-qp}) atau SMO dengan pembaruan sepasang koefisien
+(Bagian~\ref{sec:svm-smo}).
 
 \Needspace{10\baselineskip}
 \begin{lstlisting}[caption={Persiapan data pada metode fit}, label={lst:svm-fit}]
@@ -701,8 +710,12 @@ self._alphas = np.zeros(len(X))
 \texttt{np.unique} mengurutkan label dan \texttt{np.where} memberi tanda
 $-1$ pada kelas pertama serta $+1$ pada kelas kedua. Metode \texttt{fit}
 menghitung matriks $K$ dari seluruh pasangan data latih sebelum menjalankan
-\texttt{\_fit\_qp} atau \texttt{\_fit\_smo}. Karena keduanya menyimpan
-matriks berukuran $n\times n$, kebutuhan memorinya tumbuh sebagai $O(n^2)$.
+\texttt{\_fit\_qp} atau \texttt{\_fit\_smo}. Keduanya menyimpan $K$ dengan
+ukuran $n\times n$, dan QP juga membentuk matriks $Q$ dengan ukuran yang sama.
+Jadi, meskipun SMO memperbarui hanya dua koefisien per langkah, kedua
+implementasi tetap memakai memori $O(n^2)$. Pada 16.000 baris, satu matriks
+berisi bilangan \textit{float64} saja memerlukan sekitar 2,05 GB, belum
+termasuk alokasi temporer.
 
 Pada kernel polinomial dan RBF, nilai \texttt{gamma} dapat diberikan langsung
 atau dihitung dari data latih. Opsi \texttt{auto} memakai $1/p$ untuk $p$
@@ -758,8 +771,11 @@ Koefisien pertama lalu disesuaikan dengan $s=y_i y_j$ agar jumlah koefisien
 berbobot label tidak berubah. Setiap pembaruan yang berhasil juga mengubah
 intersep dan galat prediksi yang disimpan oleh SMO.
 
-Untuk memilih pasangan berikutnya, SMO memindai semua sampel atau hanya
-sampel dengan $0<\alpha_i<C$. Pada QP, sampel dalam rentang itu dipakai
+SMO memulai dengan memindai seluruh sampel, lalu memindai koefisien bebas
+($0<\alpha_i<C$) dan kembali ke pemindaian penuh jika tidak ada pembaruan.
+Untuk sampel yang melanggar KKT, SMO mengutamakan pasangan dengan selisih
+galat terbesar di antara koefisien bebas, lalu mencoba kandidat lain jika
+langkah tersebut tidak berhasil. Pada QP, sampel dengan koefisien bebas dipakai
 untuk memperkirakan intersep. Jika tidak ada, QP memakai titik tengah
 interval intersep apabila kedua batasnya tersedia. Kedua solver
 melaporkan hasil pemeriksaan KKT melalui \texttt{converged\_}. Jika
@@ -789,7 +805,9 @@ dan RBF, \texttt{decision\_function} menghitung kernel antara data uji dan
 \textit{support vector}, lalu menjumlahkan kontribusi berbobotnya dan
 menambahkan intersep. Skor ini bukan probabilitas. Pada \texttt{predict},
 skor negatif memilih label pertama. Skor nol atau positif memilih label
-kedua.
+kedua. Eksperimen lanjutan menggunakan skor dari \texttt{decision\_function}
+secara langsung dengan ambang yang dipilih pada data pengembangan tanpa
+mengubah perilaku \texttt{predict}.
 
 \subsubsection{Implementasi Bayesian Network (Naive Bayes)}
 
@@ -923,9 +941,11 @@ diimputasi terlebih dahulu pada model pembanding.
     \item \textbf{\textit{Logistic Regression}.} \texttt{LogisticRegression}
         dengan \texttt{solver='saga'} dan $C=1/(n\lambda)$ agar skala penalti
         setara dengan model sendiri.
-    \item \textbf{SVM.} \texttt{SVC} dengan $C=1$, derajat 3, \texttt{coef0=1},
-        $\gamma=1/d$, dan toleransi $10^{-3}$ untuk kernel linear, polinomial,
-        dan RBF.
+    \item \textbf{SVM.} Pada tolok ukur 1.000 baris, \texttt{SVC} memakai
+        konfigurasi kernel yang sama dengan QP dan SMO: $C=1$, derajat 3,
+        \texttt{coef0=1}, $\gamma=1/p$ untuk $p$ fitur hasil prapemrosesan,
+        dan toleransi $10^{-3}$. Perbandingan ini tidak menggunakan konfigurasi
+        RBF terpilih dari eksperimen lanjutan.
     \item \textbf{\textit{Naive Bayes}.} \texttt{CategoricalNB} untuk fitur
         kategorikal dan \texttt{GaussianNB} dengan \texttt{var\_smoothing=0}
         untuk fitur kontinu.
@@ -936,9 +956,13 @@ diimputasi terlebih dahulu pada model pembanding.
 Setiap kelas model menyediakan metode \texttt{save(path)} dan
 \texttt{load(path)} berbasis \texttt{pickle}. Parameter \textit{preprocessing}
 ikut disimpan agar data mentah diproses secara konsisten saat prediksi.
-Untuk SVM, model terpilih disimpan di \texttt{svm.pkl} dan prapemrosesnya
-di \texttt{svm\_preprocessor.pkl}. Keduanya dimuat ulang untuk membuat
-\texttt{submission\_svm.csv}. \textit{Logistic Regression} menyimpan model
+Pada alur awal SVM, model linear disimpan di \texttt{svm.pkl} dan
+prapemrosesnya di \texttt{svm\_preprocessor.pkl}. Keduanya dimuat ulang untuk
+membuat \texttt{submission\_svm.csv}. Berkas \texttt{svm\_smo\_gaussian.pkl}
+hanya merupakan contoh penyimpanan dari tolok ukur awal. Konfigurasi SMO RBF
+terpilih dari eksperimen lanjutan dilatih ulang dan menghasilkan
+\texttt{submission\_svm\_selected.csv} dengan ambang hasil validasi. Model
+tersebut tidak menimpa \texttt{svm.pkl}. \textit{Logistic Regression} menyimpan model
 terpilih dan prapemrosesnya dalam satu berkas, \texttt{logreg\_bundle.pkl}.
 KNN menyimpan prapemroses terpisah. C4.5 dan \textit{Naive Bayes} menyimpan
 kamus parameter kategorisasi. Keberhasilan penyimpanan diperiksa
@@ -1225,13 +1249,13 @@ pertama lalu mendatar karena gradiennya mengecil di dekat minimum.
 \end{figure}
 \subsubsection{Visualisasi Support Vector Machine}
 
-Untuk membandingkan bentuk batas keputusan tiap kernel, notebook menghitung
-PCA dari 1.000 baris latih yang sudah dipraproses. Komponen pertama (PC1)
-menjelaskan 16,0\% varians data tersebut, sedangkan komponen kedua (PC2)
-menjelaskan 10,8\%. Enam model pada Gambar~\ref{fig:svm-batas} dilatih
-ulang dari dua komponen yang sama. Karena keduanya hanya mencakup sekitar
-26,8\% variasi data latih, gambar ini tidak mewakili batas keputusan model
-29 fitur yang hasil validasinya dirangkum pada Tabel~\ref{tab:svm-kernel}.
+Untuk membandingkan bentuk batas keputusan tiap kernel pada tolok ukur
+awal, notebook menghitung PCA dari 1.000 baris latih yang sudah dipraproses.
+Komponen pertama (PC1) menjelaskan 16,9\% varians data tersebut, sedangkan
+komponen kedua (PC2) menjelaskan 11,1\%. Enam model pada
+Gambar~\ref{fig:svm-batas} dilatih ulang dari dua komponen yang sama.
+Gambar ini tidak mewakili batas keputusan model dengan fitur lengkap pada
+Tabel~\ref{tab:svm-kernel} maupun model RBF terpilih dari eksperimen lanjutan.
 
 Fungsi \texttt{plot\_svm\_boundary} mengevaluasi
 \texttt{decision\_function} pada kisi titik. Warna latar menunjukkan kelas
