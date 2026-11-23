@@ -194,9 +194,9 @@ terdekatnya. Batas keputusan bisa lebih fleksibel, tetapi juga bisa terlalu
 mengikuti data latih (\textit{overfitting}).
 
 \subsection{Bayesian Network (Naive Bayes)}
-\textit{Naive Bayes} merupakan algoritma klasifikasi probabilistik yang didasarkan pada teorema Bayes dengan asumsi bahwa setiap fitur bersifat independen secara kondisional terhadap kelas. Dalam representasi \textit{Bayesian network}, kelas menjadi induk dari seluruh fitur, sehingga hubungan ketergantungan antarfitur tidak dimodelkan secara langsung.
+\textit{Naive Bayes} merupakan algoritma klasifikasi probabilistik yang didasarkan pada teorema Bayes dengan asumsi bahwa setiap fitur bersifat independen secara kondisional terhadap kelas \cite{ref:materi-14}. Dalam representasi \textit{Bayesian network}, kelas menjadi induk dari seluruh fitur, sehingga hubungan ketergantungan antarfitur tidak dimodelkan secara langsung.
 
-Prediksi kelas dilakukan dengan memilih kelas yang memiliki probabilitas posterior terbesar, sebagaimana dirumuskan berikut.
+Prediksi kelas dilakukan dengan memilih kelas yang memiliki probabilitas posterior terbesar (\textit{maximum a posteriori}), sebagaimana dirumuskan berikut.
 
 \[
 \hat{c}=
@@ -204,7 +204,7 @@ Prediksi kelas dilakukan dengan memilih kelas yang memiliki probabilitas posteri
 P(c)\prod_{j=1}^{d}P(x_j\mid c)
 \]
 
-Untuk fitur kategorikal, probabilitas dihitung berdasarkan frekuensi kemunculan fitur pada masing-masing kelas. \textit{Laplace smoothing} digunakan untuk menghindari probabilitas nol pada nilai yang tidak ditemukan dalam data latih, dengan rumus berikut.
+Untuk fitur kategorikal, probabilitas dihitung berdasarkan frekuensi kemunculan fitur pada masing-masing kelas. \textit{Laplace smoothing} digunakan untuk menghindari probabilitas nol pada nilai yang tidak ditemukan dalam data latih \cite{ref:materi-14}, dengan rumus berikut.
 
 \[
 P(x_j=v\mid c)=
@@ -212,9 +212,9 @@ P(x_j=v\mid c)=
 {n_c+\alpha|V_j|}
 \]
 
-Pada rumus tersebut, $n_{c,j,v}$ menyatakan jumlah data kelas $c$ yang memiliki nilai $v$ pada fitur ke-$j$, $n_c$ menyatakan jumlah data pada kelas $c$, $|V_j|$ menyatakan banyaknya nilai yang mungkin pada fitur ke-$j$, dan $\alpha$ merupakan parameter smoothing.
+Pada rumus tersebut, $n_{c,j,v}$ menyatakan jumlah data kelas $c$ yang memiliki nilai $v$ pada fitur ke-$j$, $n_c$ menyatakan jumlah data pada kelas $c$, $|V_j|$ menyatakan banyaknya nilai yang mungkin pada fitur ke-$j$, dan $\alpha$ merupakan parameter smoothing. Prior kelas diperhalus dengan cara yang sama, yaitu $P(c)=(n_c+\alpha)/(n+\alpha K)$ dengan $n$ jumlah data dan $K$ jumlah kelas.
 
-Untuk fitur numerik, Naive Bayes dapat menggunakan distribusi Gaussian dalam memperkirakan probabilitas fitur pada setiap kelas. Perhitungan probabilitas biasanya dilakukan dalam bentuk logaritma untuk menghindari masalah \textit{underflow} akibat perkalian probabilitas yang sangat kecil \cite{ref:manning-2008}.
+Teknik ini hanya mengenal fitur kategorikal, sehingga fitur kontinu diubah menjadi kategori melalui \textit{binning}, yaitu pengelompokan nilai kontinu ke dalam interval \cite{ref:materi-09}. Dougherty dkk. melaporkan bahwa semua metode diskretisasi yang mereka uji meningkatkan akurasi rata-rata \textit{Naive Bayes} dibandingkan dengan asumsi distribusi Gaussian pada fitur kontinu \cite{ref:dougherty-1995}. Nilai kosong dapat dikodekan sebagai kategori tersendiri, misalnya \textit{Unknown} \cite{ref:materi-09}, atau dilewati dengan menjumlahkan variabel yang tidak diketahui dari perhitungan peluang \cite{ref:materi-14}. Perhitungan probabilitas dilakukan dalam bentuk logaritma untuk menghindari masalah \textit{underflow} akibat perkalian probabilitas yang sangat kecil \cite{ref:manning-2008}.
 
 \subsection{Validasi dan Metrik Evaluasi}
 Evaluasi model dilakukan menggunakan data yang tidak digunakan dalam proses pelatihan untuk mengukur kemampuan model dalam memprediksi data baru. Salah satu metode yang dapat digunakan adalah \textit{hold-out} atau \textit{train-test split}, yaitu membagi data menjadi data latih dan data uji. Selain itu, \textit{k-fold cross-validation} membagi data menjadi $k$ partisi yang digunakan secara bergantian sebagai data validasi, sementara partisi lainnya digunakan untuk pelatihan \cite{ref:materi-13}.
