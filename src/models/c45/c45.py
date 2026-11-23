@@ -63,7 +63,7 @@ class C45DecisionTree:
         return self
 
     def build_tree(self, rows, weights, attributes):
-        # weights: bobot tiap data, bisa pecahan untuk data yang nilainya missing di atasnya
+        # bobot tiap data, bisa pecahan untuk data yang nilainya missing di atasnya
         counts = np.bincount(self.train_y[rows], weights=weights, minlength=len(self.classes))
         node = TreeNode(counts)
 
@@ -86,11 +86,10 @@ class C45DecisionTree:
         node.feature = feature
         node.threshold = threshold
 
-        # Atribut kategorikal tidak dipakai lagi di bawahnya; atribut numerik boleh dipakai ulang
         child_attributes = attributes - {feature} if threshold is None else attributes
         known_weight = weights[~missing].sum()
         for key, mask in branches.items():
-            # Missing value (slide 22, C4.5): data ikut ke semua cabang dengan bobot dikali p_i
+            # Missing value data ikut ke semua cabang dengan bobot dikali p_i
             p = weights[mask].sum() / known_weight
             node.probabilities[key] = p
             child_rows = np.concatenate([rows[mask], rows[missing]])
@@ -109,7 +108,6 @@ class C45DecisionTree:
 
     def evaluate_attribute(self, rows, weights, feature):
         # Mengembalikan (gain_ratio, threshold), atau None jika atribut tidak bisa dipakai
-        # Semua jumlah data di bawah ini adalah jumlah bobot
         known = ~self.train_missing[feature][rows]
         if not known.any():
             return None
@@ -201,7 +199,7 @@ class C45DecisionTree:
                 break
             # pilih node yang paling mengurangi error validation; jika seri, subtree terbesar
             gain, size, node = max(candidates, key=lambda candidate: candidate[:2])
-            # slide 11: hanya pangkas jika akurasi validation naik; error sama berarti berhenti
+            # hanya pangkas jika akurasi validation naik; error sama berarti berhenti
             if gain <= 1e-9:  # toleransi pembulatan karena error berupa bobot pecahan
                 break
             node.feature, node.threshold = None, None
