@@ -54,7 +54,7 @@ KNN & Standardisasi, $k=31$, bobot \texttt{distance} \\
 C4.5 & \textit{Gain ratio}, \textit{Reduced Error Pruning} (80\% data pembentuk pohon dan 20\% data \textit{pruning}), \textit{oversampling} kelas batal 2,0 kali, tanpa imputasi, ditambah fitur turunan \\
 \textit{Logistic Regression} & \textit{Gradient ascent}, $\lambda=0{,}001$, laju belajar 0,1 \\
 SVM & SMO dengan kernel linear, dilatih pada 1.000 baris karena matriks kernel penuh membutuhkan memori $O(n^2)$ \\
-\textit{Naive Bayes} & \textit{Binning} 20 kuantil untuk fitur kontinu, $\alpha=2$ \\
+\textit{Naive Bayes} & \textit{Binning} 5 kuantil untuk fitur kontinu, nilai kosong sebagai kategori, $\alpha=1$ \\
 \bottomrule
 \end{tabularx}
 \end{table}
@@ -247,84 +247,86 @@ dimensi di Gambar~\ref{fig:svm-batas}, QP polinomial justru mencapai batas
 varian SMO konvergen pada ruang dua komponen tersebut.
 
 \subsubsection{Bayesian Network (Naive Bayes)}
+
 \paragraph{Rancangan}
-Pemilihan konfigurasi Naive Bayes memakai lipatan pertama dari \textit{StratifiedGroupKFold} dengan 5 lipatan, \textit{seed} 42, dan baris yang identik dikelompokkan agar tidak bocor ke data validasi. Angka eksplorasi Naive Bayes berikut berasal dari eksekusi \texttt{scikit-learn} 1.9.1: 21.897 baris latih dan 5.476 baris validasi, dengan proporsi pembatalan 0,328 pada keduanya. Pembagian ini berbeda dari eksekusi 1.7.1 yang dipakai pada tabel SVM. Seluruh pilihan (representasi fitur kontinu, jumlah \textit{bin}, dan $\alpha$) ditentukan dari data validasi, bukan dari data uji. Kolom F1 pada tabel di bawah adalah F1 untuk kelas batal.
+Pemilihan konfigurasi Naive Bayes memakai \textit{5-fold cross-validation} dengan \textit{StratifiedGroupKFold}, \textit{seed} 42, dan baris yang identik dikelompokkan agar tidak bocor ke data validasi. Lipatannya sama dengan yang dipakai model lain. Seluruh pilihan (penanganan nilai kosong, jumlah \textit{bin}, dan $\alpha$) ditentukan dari F1 \textit{macro}, metrik yang sama dengan \textit{leaderboard} Kaggle, pada data latih dan bukan pada data uji. Selisih antar konfigurasi sangat kecil, sehingga aturan pemilihan ditetapkan lebih dulu: ambil F1 \textit{macro} rata-rata tertinggi, tetapi bila selisihnya lebih kecil daripada simpangan baku antar lipatan, pilih konfigurasi yang lebih sederhana. Perbandingan dengan scikit-learn memakai lipatan pertama, yaitu 21.897 baris latih dan 5.476 baris validasi.
 
-\paragraph{Representasi fitur kontinu}
-Tabel~\ref{tab:nb-kontinu} membandingkan distribusi Gaussian dengan \textit{binning} untuk empat fitur kontinu, dengan $\alpha=1$.
-
-\begin{table}[H]
-    \centering
-    \small
-    \renewcommand{\arraystretch}{1.15}
-    \begin{tabular}{@{}lccccc@{}}
-        \toprule
-        \textbf{Representasi} & \textbf{Accuracy} & \textbf{Precision} & \textbf{Recall} & \textbf{F1} & \textbf{ROC-AUC} \\
-        \midrule
-        Gaussian, nilai asli    & 0,512 & 0,399 & 0,970 & 0,566 & 0,822 \\
-        Gaussian, $\log(1+x)$   & 0,489 & 0,388 & 0,971 & 0,555 & 0,796 \\
-        \textit{Binning} 5      & 0,783 & 0,689 & 0,614 & 0,649 & 0,830 \\
-        \textit{Binning} 10     & 0,779 & 0,683 & 0,609 & 0,644 & 0,830 \\
-        \textit{Binning} 20     & 0,781 & 0,686 & 0,611 & 0,647 & 0,832 \\
-        \bottomrule
-    \end{tabular}
-    \caption{Representasi fitur kontinu pada data validasi}
-    \label{tab:nb-kontinu}
-\end{table}
-
-Gaussian menghasilkan \textit{recall} 0,97 dengan akurasi sekitar 0,5, artinya hampir semua pemesanan diprediksi batal. \textit{Binning} jauh lebih baik, dengan akurasi sekitar 0,78. Selisih antara 5, 10, dan 20 \textit{bin} kecil, dan 20 \textit{bin} memiliki ROC-AUC tertinggi sehingga dipilih. Untuk mengetahui fitur yang menjadi penyebab, Gaussian dipasang pada satu fitur kontinu sekali waktu sementara tiga fitur lain tetap di-\textit{binning}, seperti pada Tabel~\ref{tab:nb-gaussian-fitur}.
+\paragraph{Penanganan nilai kosong}
+Sekitar 39\% baris latih dan 39\% baris uji memiliki setidaknya satu nilai kosong yang tersebar pada delapan kolom, sehingga baris uji tidak dapat dibuang. Tiga cara dibandingkan pada Tabel~\ref{tab:nb-kosong}. Cara \textit{dilewati} membiarkan nilai kosong, tidak menghitungnya saat pelatihan, dan melewatinya saat prediksi, yang setara dengan menjumlahkan variabel yang tidak diketahui dari perhitungan peluang \cite{ref:materi-14}. Cara \textit{dibuang} menghapus baris latih yang memiliki nilai kosong, sedangkan prediksi tetap melewati nilai kosong. Cara \textit{kategori} mengodekan nilai kosong sebagai kategori tersendiri \cite{ref:materi-09}.
 
 \begin{table}[H]
     \centering
     \small
     \renewcommand{\arraystretch}{1.15}
-    \begin{tabular}{@{}lccccc@{}}
+    \begin{tabular}{@{}rlcccccr@{}}
         \toprule
-        \textbf{Fitur yang Gaussian} & \textbf{Accuracy} & \textbf{Precision} & \textbf{Recall} & \textbf{F1} & \textbf{ROC-AUC} \\
+        \textbf{\textit{Bin}} & \textbf{Cara} & \textbf{F1 \textit{macro}} & \textbf{\textit{Accuracy}} & \textbf{\textit{Recall}} & \textbf{ROC-AUC} & \textbf{Baris latih} \\
         \midrule
-        \texttt{days\_before\_arrival}      & 0,779 & 0,708 & 0,557 & 0,623 & 0,822 \\
-        \texttt{nightly\_rate\_idr}         & 0,786 & 0,698 & 0,610 & 0,651 & 0,832 \\
-        \texttt{prior\_completed\_bookings} & 0,517 & 0,402 & 0,969 & 0,568 & 0,832 \\
-        \texttt{arrival\_day}               & 0,782 & 0,687 & 0,612 & 0,647 & 0,833 \\
+        20 & Dilewati  & $0{,}7447\pm0{,}0090$ & 0,7817 & 0,6117 & 0,8357 & 21.898 \\
+        20 & Dibuang   & $0{,}7424\pm0{,}0105$ & 0,7806 & 0,6037 & 0,8339 & 13.309 \\
+        20 & Kategori  & $0{,}7473\pm0{,}0096$ & 0,7838 & 0,6158 & 0,8372 & 21.898 \\
         \midrule
-        Semua fitur di-\textit{binning}     & 0,781 & 0,686 & 0,611 & 0,647 & 0,832 \\
+        5  & Dilewati  & $0{,}7466\pm0{,}0092$ & 0,7842 & 0,6090 & 0,8329 & 21.898 \\
+        5  & Dibuang   & $0{,}7440\pm0{,}0084$ & 0,7831 & 0,5984 & 0,8312 & 13.309 \\
+        5  & Kategori  & $0{,}7484\pm0{,}0091$ & 0,7857 & 0,6114 & 0,8346 & 21.898 \\
         \bottomrule
     \end{tabular}
-    \caption{Gaussian pada satu fitur kontinu dengan fitur lain di-\textit{binning}}
-    \label{tab:nb-gaussian-fitur}
+    \caption{Penanganan nilai kosong pada 5-\textit{fold cross-validation} ($\alpha=1$). \textit{Recall} adalah untuk kelas batal dan baris latih adalah rata-rata per lipatan}
+    \label{tab:nb-kosong}
 \end{table}
 
-Kegagalan Gaussian berasal dari \texttt{prior\_completed\_bookings}. Hampir semua nilainya nol sehingga varians per kelas sangat kecil, dan nilai bukan nol kemungkinan menghasilkan \textit{likelihood} yang ekstrem dan mendorong prediksi ke kelas batal. ROC-AUC fitur ini tetap 0,832, jadi urutan peluangnya tidak rusak, hanya ambang 0,5 yang menjadi tidak sesuai. \texttt{days\_before\_arrival} sedikit lebih buruk dengan Gaussian, sedangkan \texttt{nightly\_rate\_idr} sedikit lebih baik (F1 0,651 dibanding 0,647) dan \texttt{arrival\_day} tidak berpengaruh. Asumsi distribusi normal tidak cocok untuk fitur yang sangat miring, sedangkan \textit{binning} tidak membutuhkan asumsi bentuk distribusi, sehingga seluruh fitur kontinu di-\textit{binning} dengan 20 \textit{bin}.
+Membuang baris latih adalah cara terburuk. F1 \textit{macro} turun sekitar 0,0025, datanya berkurang 39\%, dan hasilnya lebih baik hanya pada 1 dari 5 lipatan. Menjadikan nilai kosong sebagai kategori lebih baik daripada melewatinya pada setiap lipatan untuk 20 \textit{bin} (selisih $+0{,}0026$) dan pada 4 dari 5 lipatan untuk 5 \textit{bin} (selisih $+0{,}0018$). Selisih itu kecil dibandingkan simpangan baku antar lipatan, yaitu sekitar 0,009, tetapi arahnya konsisten. Kekosongan juga membawa sedikit informasi: pemesanan dengan \texttt{special\_requests} kosong lebih sering batal (0,408) daripada yang terisi (0,320), dan pola kekosongan pada data uji sama dengan data latih. Karena itu nilai kosong dijadikan kategori tersendiri pada model akhir.
+
+\paragraph{Jumlah \textit{bin}}
+Fitur kontinu dipotong menjadi kategori dengan \textit{binning} kuantil \cite{ref:materi-09}. Tabel~\ref{tab:nb-bin} membandingkan 5, 10, dan 20 \textit{bin} dengan nilai kosong sebagai kategori dan $\alpha=1$.
+
+\begin{table}[H]
+    \centering
+    \small
+    \renewcommand{\arraystretch}{1.15}
+    \begin{tabular}{@{}rcccc@{}}
+        \toprule
+        \textbf{\textit{Bin}} & \textbf{F1 \textit{macro}} & \textbf{\textit{Accuracy}} & \textbf{\textit{Recall}} & \textbf{ROC-AUC} \\
+        \midrule
+        5  & $0{,}7484\pm0{,}0091$ & 0,7857 & 0,6114 & 0,8346 \\
+        10 & $0{,}7455\pm0{,}0073$ & 0,7830 & 0,6091 & 0,8347 \\
+        20 & $0{,}7473\pm0{,}0096$ & 0,7838 & 0,6158 & 0,8372 \\
+        \bottomrule
+    \end{tabular}
+    \caption{Jumlah \textit{bin} pada 5-\textit{fold cross-validation}}
+    \label{tab:nb-bin}
+\end{table}
+
+F1 \textit{macro} untuk ketiganya hanya berbeda sekitar 0,003, jauh di bawah simpangan baku, sehingga ketiganya setara. ROC-AUC sedikit lebih tinggi pada 20 \textit{bin} (0,8372 dibandingkan 0,8346). Sesuai aturan pemilihan, dipakai 5 \textit{bin}: F1 \textit{macro}-nya tertinggi dan modelnya paling sederhana.
 
 \paragraph{Pengaruh $\alpha$}
-Tabel~\ref{tab:nb-alpha} menunjukkan hasil beberapa nilai $\alpha$ pada konfigurasi \textit{binning} 20.
+Tabel~\ref{tab:nb-alpha} menunjukkan hasil beberapa nilai $\alpha$ pada konfigurasi 5 \textit{bin}.
 
 \begin{table}[H]
     \centering
     \small
     \renewcommand{\arraystretch}{1.15}
-    \begin{tabular}{@{}rccc@{}}
+    \begin{tabular}{@{}rcccc@{}}
         \toprule
-        $\alpha$ & \textbf{Accuracy} & \textbf{F1} & \textbf{ROC-AUC} \\
+        $\alpha$ & \textbf{F1 \textit{macro}} & \textbf{\textit{Accuracy}} & \textbf{\textit{Recall}} & \textbf{ROC-AUC} \\
         \midrule
-        0     & 0,7818 & 0,6478 & 0,8332 \\
-        0,01  & 0,7818 & 0,6478 & 0,8332 \\
-        0,1   & 0,7818 & 0,6478 & 0,8330 \\
-        0,5   & 0,7812 & 0,6470 & 0,8327 \\
-        1     & 0,7812 & 0,6468 & 0,8324 \\
-        2     & 0,7812 & 0,6468 & 0,8321 \\
-        5     & 0,7820 & 0,6474 & 0,8315 \\
-        10    & 0,7818 & 0,6434 & 0,8308 \\
+        0    & $0{,}7483\pm0{,}0092$ & 0,7854 & 0,6123 & 0,8346 \\
+        0,1  & $0{,}7484\pm0{,}0090$ & 0,7856 & 0,6122 & 0,8347 \\
+        0,5  & $0{,}7483\pm0{,}0089$ & 0,7855 & 0,6117 & 0,8346 \\
+        1    & $0{,}7484\pm0{,}0091$ & 0,7857 & 0,6114 & 0,8346 \\
+        2    & $0{,}7475\pm0{,}0085$ & 0,7851 & 0,6091 & 0,8344 \\
+        5    & $0{,}7471\pm0{,}0088$ & 0,7851 & 0,6065 & 0,8340 \\
+        10   & $0{,}7469\pm0{,}0087$ & 0,7854 & 0,6031 & 0,8335 \\
         \bottomrule
     \end{tabular}
-    \caption{Pengaruh $\alpha$ pada data validasi}
+    \caption{Pengaruh $\alpha$ pada 5-\textit{fold cross-validation}}
     \label{tab:nb-alpha}
 \end{table}
 
-Pengaruh $\alpha$ sangat kecil karena data latih memiliki 21.897 baris sehingga hitungan nyata jauh lebih besar daripada hitungan tambahan. Pengecekan ulang dengan \textit{5-fold cross-validation} pada seluruh \texttt{train.csv} memberi kesimpulan yang sama: F1 \textit{macro} untuk $\alpha$ dari 0 sampai 10 hanya berkisar 0,7447 sampai 0,7452, jauh lebih kecil daripada simpangan baku antar lipatan (sekitar 0,009), sehingga tidak ada $\alpha$ yang unggul secara berarti. Nilai $\alpha=2$ dipakai: ROC-AUC-nya hanya sekitar 0,001 di bawah yang terbaik dan \textit{smoothing} yang lebih kuat lebih aman untuk nilai yang jarang muncul. $\alpha=0$ tidak dipakai walaupun sedikit lebih tinggi, karena tanpa \textit{smoothing} satu nilai yang belum pernah terlihat pada suatu kelas membuat skor kelas itu menjadi nol. Karena $\alpha$ dan jumlah \textit{bin} dipilih dari data validasi yang sama, angka pada tabel ini sedikit optimistis.
+Pengaruh $\alpha$ sangat kecil karena data latih memiliki 21.898 baris sehingga hitungan nyata jauh lebih besar daripada hitungan tambahan. F1 \textit{macro} hanya berkisar 0,7469 sampai 0,7484, jauh di bawah simpangan baku antar lipatan. Dipakai $\alpha=1$, yaitu \textit{Laplace smoothing} standar \cite{ref:materi-14}. $\alpha=0$ tidak dipilih walaupun sama baiknya, karena tanpa \textit{smoothing} satu nilai yang belum pernah terlihat pada suatu kelas membuat skor kelas itu menjadi nol.
 
 \paragraph{Perbandingan dengan scikit-learn}
-Implementasi sendiri dibandingkan dengan \texttt{CategoricalNB} dan \texttt{GaussianNB} pada masukan yang identik. Karena scikit-learn tidak menerima NaN, untuk perbandingan ini nilai kosong diisi lebih dulu dengan modus, dan \texttt{GaussianNB} memakai \texttt{var\_smoothing} nol agar rumusnya sama. Selisih terbesar antara \texttt{predict\_proba} keduanya hanya sekitar $3{,}6\times10^{-15}$ untuk kategorikal dan $2{,}1\times10^{-13}$ untuk Gaussian, sehingga kedua implementasi menghasilkan metrik yang sama persis (Tabel~\ref{tab:nb-sklearn}). Perbedaan yang tersisa hanya pada penanganan NaN, yang tidak didukung scikit-learn, dan pada \texttt{var\_smoothing}: scikit-learn menambahkan varians terbesar dari semua fitur, sedangkan implementasi ini memakai varians tiap kolom.
+Implementasi sendiri dibandingkan dengan \texttt{CategoricalNB} pada masukan yang identik. Nilai kosong sudah menjadi kategori sehingga tidak ada nilai yang perlu diisi, dan prior kelas diperhalus dengan $\alpha$ yang sama lewat parameter \texttt{class\_prior}. Selisih terbesar antara \texttt{predict\_proba} keduanya hanya sekitar $3{,}6\times10^{-15}$ dan seluruh metrik sama persis (Tabel~\ref{tab:nb-sklearn}).
 
 \begin{table}[H]
     \centering
@@ -334,18 +336,16 @@ Implementasi sendiri dibandingkan dengan \texttt{CategoricalNB} dan \texttt{Gaus
         \toprule
         \textbf{Model} & \textbf{Accuracy} & \textbf{Precision} & \textbf{Recall} & \textbf{F1} & \textbf{ROC-AUC} \\
         \midrule
-        \texttt{CategoricalNB} (scikit-learn) & 0,785 & 0,691 & 0,618 & 0,653 & 0,831 \\
-        Implementasi sendiri, kategorikal     & 0,785 & 0,691 & 0,618 & 0,653 & 0,831 \\
-        \texttt{GaussianNB} (scikit-learn)    & 0,419 & 0,357 & 0,969 & 0,522 & 0,729 \\
-        Implementasi sendiri, Gaussian        & 0,419 & 0,357 & 0,969 & 0,522 & 0,729 \\
+        \texttt{CategoricalNB} (scikit-learn) & 0,784 & 0,693 & 0,614 & 0,651 & 0,832 \\
+        Implementasi sendiri                  & 0,784 & 0,693 & 0,614 & 0,651 & 0,832 \\
         \bottomrule
     \end{tabular}
-    \caption{Perbandingan dengan scikit-learn pada data validasi}
+    \caption{Perbandingan dengan scikit-learn pada data validasi. F1 adalah untuk kelas batal}
     \label{tab:nb-sklearn}
 \end{table}
 
 \paragraph{Hasil validasi silang}
-Konfigurasi akhir (\textit{binning} 20, $\alpha=2$) dievaluasi dengan 5-\textit{fold} \textit{cross-validation} dan hasilnya sudah dimuat pada Tabel~\ref{tab:cv}. Naive Bayes mendapatkan F1 \textit{macro} 0,744 $\pm$ 0,006, akurasi 0,781, \textit{precision} 0,687, dan \textit{recall} 0,610. Pada \textit{leaderboard} publik Kaggle, konfigurasi akhir Naive Bayes ($\alpha=2$, 20 \textit{bin}, dilatih pada seluruh \texttt{train.csv}) mendapatkan F1 \textit{macro} 0,75756. Skor tersebut dihitung dari sekitar 30\% data uji, sehingga dapat berbeda beberapa poin dari validasi silang.
+Konfigurasi akhir (5 \textit{bin}, $\alpha=1$, nilai kosong sebagai kategori) dievaluasi dengan 5-\textit{fold} \textit{cross-validation} dan hasilnya sudah dimuat pada Tabel~\ref{tab:cv}. Naive Bayes mendapatkan F1 \textit{macro} 0,748 $\pm$ 0,009, akurasi 0,786, \textit{precision} 0,698, dan \textit{recall} 0,611. Pelatihan pada seluruh data latih memakan waktu sekitar 0,3 detik. Pada \textit{leaderboard} publik Kaggle, konfigurasi ini mendapatkan F1 \textit{macro} 0,76127. Skor tersebut dihitung dari sekitar 30\% data uji, sehingga dapat berbeda beberapa poin dari validasi silang.
 
 \paragraph{Graf hubungan fitur dan kelas}
 Gambar~\ref{fig:nb-graf} menunjukkan graf Naive Bayes yang dihitung dari data latih.
@@ -357,10 +357,56 @@ Gambar~\ref{fig:nb-graf} menunjukkan graf Naive Bayes yang dihitung dari data la
     \label{fig:nb-graf}
 \end{figure}
 
-Informasi terbesar tentang pembatalan berasal dari \texttt{days\_before\_arrival} (0,152 bit), disusul \texttt{special\_requests} (0,056 bit) dan \texttt{arrival\_month} (0,036 bit). Fitur seperti \texttt{prior\_completed\_bookings}, \texttt{num\_children}, dan \texttt{room\_category} hampir tidak berkaitan dengan kelas. Di sisi lain, banyak pasangan fitur yang masih saling bergantung kuat setelah kelas diketahui, misalnya \texttt{room\_category} dengan \texttt{nightly\_rate\_idr} (0,23 bit), \texttt{arrival\_month} dengan \texttt{days\_before\_arrival} (0,19 bit), \texttt{booking\_channel} dengan \texttt{nightly\_rate\_idr} (0,18 bit), dan \texttt{weekend\_nights} dengan \texttt{weekday\_nights} (0,16 bit). Naive Bayes mengalikan pasangan seperti ini seolah-olah independen sehingga bukti yang sama terhitung lebih dari sekali.
+Informasi terbesar tentang pembatalan berasal dari \texttt{days\_before\_arrival} (0,139 bit), disusul \texttt{special\_requests} (0,053 bit) dan \texttt{arrival\_month} (0,036 bit). Fitur seperti \texttt{prior\_completed\_bookings}, \texttt{arrival\_day}, \texttt{num\_children}, dan \texttt{room\_category} hampir tidak berkaitan dengan kelas. Di sisi lain, banyak pasangan fitur yang masih saling bergantung kuat setelah kelas diketahui, misalnya \texttt{arrival\_year} dengan \texttt{arrival\_month} (0,17 bit), \texttt{booking\_channel} dengan \texttt{special\_requests} (0,17 bit), \texttt{room\_category} dengan \texttt{nightly\_rate\_idr} (0,16 bit), \texttt{booking\_channel} dengan \texttt{nightly\_rate\_idr} (0,16 bit), dan \texttt{weekend\_nights} dengan \texttt{weekday\_nights} (0,16 bit). Naive Bayes mengalikan pasangan seperti ini seolah-olah independen sehingga bukti yang sama terhitung lebih dari sekali.
 
 \paragraph{Analisis}
-Naive Bayes berada di posisi terakhir pada Tabel~\ref{tab:cv}, dengan F1 \textit{macro} sekitar 0,09 di bawah KNN dan C4.5. Selisih ini jauh lebih besar daripada variasi antar lipatan. Graf di atas memberikan penjelasan yang masuk akal: banyak fitur saling bergantung setelah kelas diketahui, padahal model mengasumsikannya independen, sedangkan KNN dan C4.5 dapat menangkap interaksi antarfitur. Hubungan antara dugaan ini dan selisih skor tidak diuji langsung, misalnya dengan model yang memodelkan ketergantungan antarfitur. \textit{Precision} Naive Bayes adalah yang terendah (0,687), artinya model paling sering salah memprediksi batal. Di sisi lain, Naive Bayes sangat cepat dilatih (sekitar 0,04 detik), dapat menangani nilai kosong tanpa imputasi, dan menghasilkan peluang yang mudah dijelaskan dari frekuensi.
+Naive Bayes berada di posisi terakhir pada Tabel~\ref{tab:cv}, dengan F1 \textit{macro} sekitar 0,08 di bawah KNN dan C4.5. Selisih ini jauh lebih besar daripada variasi antar lipatan. \textit{Precision}-nya adalah yang terendah (0,698), artinya model paling sering salah memprediksi batal. Banyak fitur saling bergantung setelah kelas diketahui, padahal model mengasumsikannya independen, sedangkan KNN dan C4.5 dapat menangkap interaksi antarfitur. Dugaan ini diuji pada bagian Tree Augmented Naive Bayes di bawah. Di sisi lain, Naive Bayes sangat cepat dilatih (sekitar 0,3 detik), tidak memerlukan imputasi, dan menghasilkan peluang yang mudah dijelaskan dari frekuensi.
+
+\subsubsection{Tree Augmented Naive Bayes (Bonus)}
+
+\paragraph{Rancangan}
+Tree Augmented Naive Bayes (TAN) dievaluasi dengan lipatan dan metrik yang sama seperti Naive Bayes. Enam konfigurasi dicoba, yaitu 5, 10, dan 20 \textit{bin}, masing-masing dengan \textit{smoothing} Laplace dan Dirichlet ($N_0=5$) \cite{ref:friedman-1997}. Naive Bayes dengan jumlah \textit{bin} yang sama menjadi pembanding berpasangan pada tiap lipatan, dan aturan pemilihan konfigurasi sama seperti pada Naive Bayes. Nilai kosong dikodekan sebagai kategori dan bobot pohon memakai informasi bersama bersyarat mentah.
+
+\begin{table}[H]
+    \centering
+    \small
+    \renewcommand{\arraystretch}{1.15}
+    \begin{tabular}{@{}rlccccc@{}}
+        \toprule
+        \textbf{\textit{Bin}} & \textbf{Model} & \textbf{F1 \textit{macro}} & \textbf{\textit{Accuracy}} & \textbf{\textit{Recall}} & \textbf{ROC-AUC} & \textbf{Waktu latih (detik)} \\
+        \midrule
+        5  & Naive Bayes     & $0{,}7484\pm0{,}0091$ & 0,7857 & 0,6114 & 0,8346 & --- \\
+        5  & TAN Laplace     & $0{,}7748\pm0{,}0077$ & 0,8074 & 0,6521 & 0,8670 & 6,3 \\
+        5  & TAN Dirichlet   & $0{,}7756\pm0{,}0080$ & 0,8076 & 0,6560 & 0,8667 & 7,2 \\
+        \midrule
+        10 & Naive Bayes     & $0{,}7455\pm0{,}0073$ & 0,7830 & 0,6091 & 0,8347 & --- \\
+        10 & TAN Laplace     & $0{,}7758\pm0{,}0074$ & 0,8093 & 0,6454 & 0,8679 & 7,0 \\
+        10 & TAN Dirichlet   & $0{,}7760\pm0{,}0083$ & 0,8088 & 0,6502 & 0,8673 & 7,9 \\
+        \midrule
+        20 & Naive Bayes     & $0{,}7473\pm0{,}0096$ & 0,7838 & 0,6158 & 0,8372 & --- \\
+        20 & TAN Laplace     & $0{,}7802\pm0{,}0083$ & 0,8121 & 0,6580 & 0,8719 & 7,2 \\
+        20 & TAN Dirichlet   & $0{,}7808\pm0{,}0088$ & 0,8119 & 0,6644 & 0,8695 & 7,0 \\
+        \bottomrule
+    \end{tabular}
+    \caption{TAN dan Naive Bayes pada 5-\textit{fold cross-validation}. \textit{Recall} adalah untuk kelas batal dan waktu latih adalah rata-rata per lipatan}
+    \label{tab:tan}
+\end{table}
+
+\paragraph{Hasil}
+TAN lebih baik daripada Naive Bayes pada setiap jumlah \textit{bin} dan pada setiap lipatan (Tabel~\ref{tab:tan}). Selisih F1 \textit{macro} berpasangan dengan Laplace adalah $+0{,}027$ pada 5 \textit{bin}, $+0{,}030$ pada 10 \textit{bin}, dan $+0{,}033$ pada 20 \textit{bin}, jauh lebih besar daripada simpangan baku antar lipatan (sekitar 0,008). ROC-AUC naik dari sekitar 0,835 menjadi 0,867 sampai 0,872, dan \textit{recall} kelas batal naik dari 0,61 menjadi 0,65 sampai 0,66. \textit{Smoothing} Dirichlet dan Laplace hampir tidak berbeda (selisih F1 \textit{macro} paling besar 0,0007), sehingga dipakai Laplace yang sama dengan Naive Bayes. F1 \textit{macro} TAN naik sedikit seiring bertambahnya \textit{bin} (0,7748, 0,7758, dan 0,7802), tetapi selisih terbesarnya 0,005 masih di bawah simpangan baku. Sesuai aturan pemilihan dipakai 5 \textit{bin}, yang juga membuat perbandingan dengan Naive Bayes hanya berbeda pada struktur modelnya. Konfigurasi dipilih dari enam kandidat pada lipatan yang sama dengan evaluasi sehingga skornya sedikit optimistis, tetapi kesimpulan bahwa TAN lebih baik berlaku pada keenam konfigurasi.
+
+\paragraph{Pohon yang dipelajari}
+Gambar~\ref{fig:tan-struktur} menunjukkan pohon yang dipelajari dari seluruh data latih. Akar pohon adalah \texttt{days\_before\_arrival}, fitur yang paling berkaitan dengan kelas. Pohon memuat banyak pasangan yang tampak pada Gambar~\ref{fig:nb-graf}, misalnya \texttt{arrival\_month} dengan \texttt{arrival\_year} (0,17 bit), \texttt{booking\_channel} dengan \texttt{special\_requests} (0,17 bit), \texttt{weekday\_nights} dengan \texttt{weekend\_nights} (0,17 bit), dan \texttt{nightly\_rate\_idr} dengan \texttt{room\_category} (0,16 bit). Sisi yang bobotnya mendekati nol, seperti \texttt{meal\_package} dengan \texttt{prior\_completed\_bookings}, hanya diperlukan agar seluruh fitur terhubung dalam satu pohon.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.85\textwidth]{../output/tan_structure.png}
+    \caption{Struktur TAN: garis abu-abu dari kelas ke semua fitur dan panah merah dari fitur induk ke anak (tebal menunjukkan $I(A;B\mid C)$). Simpul hijau adalah akar pohon}
+    \label{fig:tan-struktur}
+\end{figure}
+
+\paragraph{Analisis}
+Dugaan bahwa asumsi independensi ikut menyebabkan skor Naive Bayes yang rendah didukung oleh hasil ini. Menambahkan pohon ketergantungan antarfitur saja, tanpa mengubah praproses, menaikkan F1 \textit{macro} dari 0,748 menjadi 0,775. Skor ini lebih tinggi daripada \textit{Logistic Regression} (0,759) dan SVM (0,754) tetapi masih di bawah KNN (0,832) dan C4.5 (0,830) pada Tabel~\ref{tab:cv}. Kenaikan 0,026 menutup sekitar sepertiga selisih antara Naive Bayes dan KNN, sehingga ketergantungan berpasangan bukan satu-satunya penyebab. KNN dan C4.5 mungkin menangkap interaksi yang lebih rumit daripada hubungan berpasangan pada pohon TAN, tetapi hal itu tidak diuji. Harga yang dibayar adalah waktu: pelatihan TAN pada seluruh data sekitar 7 detik, sekitar 20 kali lebih lama daripada Naive Bayes (0,3 detik), terutama karena informasi bersama bersyarat dihitung untuk 136 pasangan fitur.
 
 \subsubsection{Perbandingan Antarmodel}
 
@@ -381,7 +427,7 @@ KNN & 0,855 & 0,805 & 0,737 & 0,832 $\pm$ 0,008 & 0,914 \\
 C4.5 & 0,853 & 0,795 & 0,744 & 0,830 $\pm$ 0,006 & 0,865 \\
 \textit{Logistic Regression} & 0,797 & 0,731 & 0,605 & 0,759 $\pm$ 0,009 & 0,854 \\
 SVM & 0,794 & 0,726 & 0,597 & 0,754 $\pm$ 0,010 & 0,843 \\
-\textit{Naive Bayes} & 0,781 & 0,687 & 0,610 & 0,744 $\pm$ 0,006 & 0,836 \\
+\textit{Naive Bayes} & 0,786 & 0,698 & 0,611 & 0,748 $\pm$ 0,009 & 0,835 \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -429,15 +475,15 @@ C4.5 & 0,5 & 1.722 & 2.299 & 5.743 \\
  & 0,667 & 1.474 & 2.492 & 5.440 \\
 \textit{Logistic Regression} & 0,5 & 1.997 & 3.549 & 7.543 \\
  & 0,667 & 839 & 5.311 & 6.989 \\
-\textit{Naive Bayes} & 0,5 & 2.488 & 3.503 & 8.479 \\
- & 0,667 & 1.027 & 4.948 & 7.002 \\
+\textit{Naive Bayes} & 0,5 & 2.382 & 3.485 & 8.249 \\
+ & 0,667 & 995 & 4.974 & 6.964 \\
 \bottomrule
 \end{tabular}
 \end{table}
 
 Pada semua model, \textit{threshold} 0,667 menurunkan jumlah $FP$ dan menaikkan
 jumlah $FN$, dan total biaya ikut turun karena $FP$ berbobot dua kali lipat.
-Penurunan terbesar terjadi pada \textit{Naive Bayes} (sekitar 17\%), yang
+Penurunan terbesar terjadi pada \textit{Naive Bayes} (sekitar 16\%), yang
 memiliki $FP$ terbanyak pada \textit{threshold} 0,5, dan terkecil pada C4.5
 (sekitar 5\%). KNN memiliki total biaya terendah (5.093), dengan $FP$ turun
 dari 1.607 menjadi 614. Perubahan ini memberi pertukaran yang harus
@@ -531,6 +577,8 @@ L2 & Sendiri & 0,807 & 0,680 & 0,865 \\
 \bottomrule
 \end{tabular}
 \end{table}
+
+\paragraph{Naive Bayes.} Hasil kedua implementasi identik (Tabel~\ref{tab:nb-sklearn}). Selisih terbesar \texttt{predict\_proba} hanya sekitar $3{,}6\times10^{-15}$ dan seluruh metrik sama persis. Perbandingan ini memakai nilai kosong yang sudah dikodekan sebagai kategori dan prior kelas yang diperhalus sama seperti model sendiri, sehingga tidak ada nilai yang perlu diimputasi.
 
 \subsubsection{Analisis Waktu Eksekusi}
 

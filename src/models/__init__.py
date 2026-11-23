@@ -2,10 +2,11 @@
 
 from .c45 import C45DecisionTree
 from .knn import KNNClassifier
-from .naive_bayes import NaiveBayesClassifier
+from .naive_bayes import NaiveBayesClassifier, TreeAugmentedNaiveBayes
 from .logreg import LogisticRegressionClassifier
 from .svm import SVM
 from .cost_sensitive import cost_sensitive_threshold, predict_cost_sensitive, classification_cost
 
-__all__ = ["C45DecisionTree", "KNNClassifier", "NaiveBayesClassifier", "LogisticRegressionClassifier", "SVM",
+__all__ = ["C45DecisionTree", "KNNClassifier", "NaiveBayesClassifier", "TreeAugmentedNaiveBayes",
+           "LogisticRegressionClassifier", "SVM",
            "cost_sensitive_threshold", "predict_cost_sensitive", "classification_cost"]
