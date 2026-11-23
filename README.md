@@ -58,20 +58,35 @@ cd src/notebooks
 jupyter lab main.ipynb
 ```
 
-Pilih kernel dari `.venv`, lalu **Restart Kernel and Run All Cells** untuk
-membuat lima CSV submisi dan lima berkas PKL di `output/`. Hanya sel ekspor
-akhir yang menulis ke direktori tersebut:
+Pilih kernel dari `.venv`, lalu **Restart Kernel and Run All Cells**. Notebook
+menampilkan keputusan CV pengembangan, menyelesaikan laporan holdout, lalu
+melatih ulang model terpilih dan memprediksi baris test pada tahap `final-fit`.
+Sel `pair-publish` terakhir memvalidasi ID/label dan menulis lima CSV submisi
+serta lima PKL ke `output/`; hanya sel ini yang menulis berkas model/submisi:
 
 | Jenis | Nama berkas |
 | --- | --- |
 | CSV | `submission_dtl.csv`, `submission_knn.csv`, `submission_logreg.csv`, `submission_svm.csv`, `submission_bayes.csv` |
 | PKL | `dtl.pkl`, `knn.pkl`, `logreg.pkl`, `svm.pkl`, `bayes.pkl` |
 
-Pemilihan model final memakai CV pengembangan yang sudah ada. DTL/C4.5 dan SVM
-menggunakan pemenang eksperimen berpasangan; eksperimen SVM tersebut memakai
-16.000 baris. KNN, regresi logistik, dan Bayes menggunakan pemenang pencarian
-fitur lintas model. Tabel dan plot eksperimen tetap tampil di notebook;
+Pemilihan final memakai hasil CV pengembangan: DTL/C4.5 memakai pemenang CV
+berpasangan dengan REP tanpa oversampling; SVM memakai keputusan CV berpasangan
+dengan baseline iterasi 04 (16.000 baris); KNN, regresi logistik, dan Naive
+Bayes memakai pemenang `fe_winners`. Tabel keputusan menampilkan kandidat,
+fitur, ambang bila relevan, dan sumber sebelum refit. Holdout hanya untuk
+pelaporan. Visualisasi pohon disimpan terpisah sebagai `output/c45_tree.png`;
 gambar dan video yang dirujuk laporan tersimpan di `docs/figures/`.
+
+Notebook tidak membaca `ground_truth.csv` atau mengevaluasi prediksi submisi
+terhadap label test. Evaluasi tersebut dilakukan terpisah di luar notebook
+saat label test tersedia. ID test tetap divalidasi terhadap
+`sample_submission.csv` sebelum berkas ditulis.
+
+Validasi alur notebook dan ekspor model dapat dijalankan dengan:
+
+```bash
+.venv/bin/python -m pytest -q tests/test_notebook_flow.py tests/test_submission_model_exports_notebook.py
+```
 
 Setiap PKL berisi sebuah dictionary dengan model terlatih yang tepat untuk CSV
 pasangannya serta konfigurasi atau referensi prapemrosesan yang diperlukan
