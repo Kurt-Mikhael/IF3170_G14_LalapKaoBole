@@ -38,7 +38,7 @@ terpilih yang sudah dilatih pada bagian latih dari pembagian pertama.
 
 Tabel~\ref{tab:param} merangkum konfigurasi terpilih tiap model. Nilai tersebut
 dipilih pada data validasi, kecuali faktor \textit{oversampling} C4.5 yang
-dipilih dengan validasi silang di dalam data latih.
+dipilih dengan \textit{cross validation} di dalam data latih.
 
 \begin{table}[H]
 \centering
@@ -289,7 +289,7 @@ hasil pada ambang keputusan $f=0$.}
 \label{fig:svm-pr}
 \end{figure}
 
-Dalam validasi silang lima lipatan, model SMO linear dan prapemrosesnya
+Dalam \textit{5-fold cross validation}, model SMO linear dan prapemrosesnya
 dilatih ulang pada 1.000 baris dari bagian latih setiap lipatan. Rata-rata
 \textit{Macro F1} adalah 0,754 dengan simpangan baku antarlipatan 0,010,
 dan rata-rata ROC-AUC adalah 0,843 (Tabel~\ref{tab:cv}). Berbeda dengan
@@ -457,8 +457,8 @@ Implementasi sendiri dibandingkan dengan \texttt{CategoricalNB} pada masukan yan
     \label{tab:nb-sklearn}
 \end{table}
 
-\paragraph{Hasil validasi silang}
-Konfigurasi akhir (5 \textit{bin}, $\alpha=1$, nilai kosong sebagai kategori) dievaluasi dengan 5-\textit{fold} \textit{cross-validation} dan hasilnya sudah dimuat pada Tabel~\ref{tab:cv}. Naive Bayes mendapatkan F1 \textit{macro} 0,748 $\pm$ 0,009, akurasi 0,786, \textit{precision} 0,698, dan \textit{recall} 0,611. Pelatihan pada seluruh data latih memakan waktu sekitar 0,3 detik. Pada \textit{leaderboard} publik Kaggle, konfigurasi ini mendapatkan F1 \textit{macro} 0,76127. Skor tersebut dihitung dari sekitar 30\% data uji, sehingga dapat berbeda beberapa poin dari validasi silang.
+\paragraph{Hasil \textit{cross validation}}
+Konfigurasi akhir (5 \textit{bin}, $\alpha=1$, nilai kosong sebagai kategori) dievaluasi dengan 5-\textit{fold} \textit{cross-validation} dan hasilnya sudah dimuat pada Tabel~\ref{tab:cv}. Naive Bayes mendapatkan F1 \textit{macro} 0,748 $\pm$ 0,009, akurasi 0,786, \textit{precision} 0,698, dan \textit{recall} 0,611. Pelatihan pada seluruh data latih memakan waktu sekitar 0,3 detik. Pada \textit{leaderboard} publik Kaggle, konfigurasi ini mendapatkan F1 \textit{macro} 0,76127. Skor tersebut dihitung dari sekitar 30\% data uji, sehingga dapat berbeda beberapa poin dari \textit{cross validation}.
 
 \paragraph{Graf hubungan fitur dan kelas}
 Gambar~\ref{fig:nb-graf} menunjukkan graf Naive Bayes yang dihitung dari data latih.
