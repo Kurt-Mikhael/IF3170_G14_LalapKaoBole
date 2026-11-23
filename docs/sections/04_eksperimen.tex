@@ -703,6 +703,20 @@ L2 & Sendiri & 0,807 & 0,680 & 0,865 \\
 \end{tabular}
 \end{table}
 
+\paragraph{SVM.} Perbandingan SVM dengan \texttt{SVC} sudah dimuat pada
+Tabel~\ref{tab:svm-kernel}, dengan 1.000 baris latih, $C=1$, dan toleransi
+$10^{-3}$ untuk ketiga kernel. Untuk kernel yang sama, QP dan SMO memberikan
+\textit{accuracy}, \textit{precision}, dan F1 kelas batal yang sama dengan
+\texttt{SVC} sampai tiga desimal. Selisih terbesar hanya 0,001, yaitu pada
+\textit{recall} QP linear (0,625 dibanding 0,626) dan ROC-AUC SMO RBF (0,855
+dibanding 0,854). Selisih sekecil ini wajar karena ketiganya berhenti pada
+toleransi KKT yang sama, tetapi dengan urutan pembaruan koefisien yang
+berbeda. \texttt{SVC} memakai pustaka LIBSVM yang juga berbasis dekomposisi
+seperti SMO, sehingga hasil SMO yang hampir identik menjadi tanda bahwa
+implementasi sendiri sudah benar. Dari sisi waktu, QP jauh lebih lambat
+daripada SMO pada kernel polinomial (sekitar 15 detik dibanding 0,5 detik)
+karena setiap langkahnya memakai seluruh matriks $Q$ berukuran $n\times n$.
+
 \paragraph{Naive Bayes.} Hasil kedua implementasi identik (Tabel~\ref{tab:nb-sklearn}). Selisih terbesar \texttt{predict\_proba} hanya sekitar $3{,}6\times10^{-15}$ dan seluruh metrik sama persis. Perbandingan ini memakai nilai kosong yang sudah dikodekan sebagai kategori dan prior kelas yang diperhalus sama seperti model sendiri, sehingga tidak ada nilai yang perlu diimputasi.
 
 \subsubsection{Analisis Waktu Eksekusi}
