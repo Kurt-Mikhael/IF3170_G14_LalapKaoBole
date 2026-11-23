@@ -16,9 +16,14 @@ Repository Tugas Besar 2 IF3170 Inteligensi Artifisial, Kelompok LalapKaoBole, k
 │   └── logo-itb.png
 ├── src/
 │   ├── models/
-│   │   └── knn.py
+│   │   ├── c45/
+│   │   ├── knn/
+│   │   ├── logreg/
+│   │   ├── naive_bayes/
+│   │   └── svm/
 │   └── notebooks/
-│       └── v1.ipynb
+│       └── main.ipynb
+├── output/  # Model, hasil eksperimen, dan CSV submission
 └── README.md
 ```
 
@@ -32,20 +37,36 @@ Jalankan dari direktori utama repository:
 
 ```bash
 uv venv --python 3.12
-uv pip install jupyterlab notebook pandas numpy matplotlib seaborn scikit-learn scipy imageio-ffmpeg
+uv pip install jupyterlab notebook pandas numpy matplotlib seaborn 'scikit-learn==1.7.1' scipy imageio-ffmpeg
 source .venv/bin/activate
 ```
 
-## Menjalankan Notebook EDA
+Gunakan scikit-learn 1.7.1 untuk memuat preprocessor yang disimpan dan
+mengulang hasil submission. Versi lain dapat menghasilkan pembagian data
+latih dan validasi yang berbeda meskipun nilai seed sama.
+
+## Menjalankan Notebook
 
 Jalankan Jupyter dari direktori notebook agar data ditemukan:
 
 ```bash
 cd src/notebooks
-jupyter lab v1.ipynb
+jupyter lab main.ipynb
 ```
 
-Pilih **Run All** untuk menjalankan notebook.
+Pilih **Restart Kernel and Run All Cells**. Notebook melatih model dan menulis
+hasilnya ke `output/`.
+
+| Submission | Model dan parameter prapemrosesan |
+| --- | --- |
+| `submission_c45.csv` | `c45_final.pkl` dan `c45_rare_categories.pkl` |
+| `submission_knn.csv` | `knn.pkl` dan `knn_preprocessor.pkl` |
+| `submission_logreg.csv` | `logreg_bundle.pkl` (model dan preprocessor) |
+| `submission_naive_bayes.csv` | `naive_bayes.pkl` dan `naive_bayes_preprocessing.pkl` |
+| `submission_svm.csv` | `svm.pkl` dan `svm_preprocessor.pkl` |
+
+`logreg_l2.pkl` dan `svm_smo_gaussian.pkl` adalah model contoh untuk
+demonstrasi penyimpanan, bukan model yang menghasilkan submission.
 
 ## Kontributor
 

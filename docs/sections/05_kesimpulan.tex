@@ -23,8 +23,11 @@ Berdasarkan \textit{5-fold cross-validation}, KNN (F1 macro 0,832) dan C4.5
 variasi antar-\textit{fold}, sehingga keduanya dapat dianggap setara.
 Keduanya unggul karena mampu menangkap pola nonlinear dan interaksi antarfitur,
 sedangkan \textit{Logistic Regression} (0,759), SVM berkernel linear (0,754),
-dan \textit{Naive Bayes} (0,744) hanya membentuk batas yang lebih sederhana atau
-mengasumsikan fitur saling bebas. Seluruh model berada jauh di atas
+dan \textit{Naive Bayes} (0,748) hanya membentuk batas yang lebih sederhana atau
+mengasumsikan fitur saling bebas. Menambahkan pohon ketergantungan antarfitur
+lewat \textit{Tree Augmented Naive Bayes} (bonus) menaikkan F1 macro
+\textit{Naive Bayes} menjadi 0,775, sehingga asumsi independensi memang ikut
+menurunkan skornya, tetapi belum cukup untuk menyamai KNN dan C4.5. Seluruh model berada jauh di atas
 \textit{baseline} 0,675, tetapi \textit{recall} kelas batal baru mencapai 0,60
 sampai 0,74. Pada bonus, penggeseran \textit{threshold} menjadi 0,667 untuk
 \textit{cost-sensitive classification} menurunkan total biaya pada semua model,
@@ -41,9 +44,9 @@ lebih ekstensif. Rekayasa fitur tambahan, misalnya fitur interaksi untuk model
 linear, juga berpotensi meningkatkan \textit{Logistic Regression} dan SVM.
 Karena \textit{recall} kelas batal masih rendah, pemilihan \textit{threshold}
 yang dioptimalkan langsung terhadap \textit{Macro F1} atau terhadap biaya
-dapat dicoba. Pada \textit{Naive Bayes}, model yang memodelkan ketergantungan
-antarfitur, seperti yang ditunjukkan graf pada bagian hasil, dapat diuji untuk
-memastikan penyebab skornya yang lebih rendah.
+dapat dicoba. Pada \textit{Naive Bayes}, TAN menaikkan skor dengan memodelkan
+ketergantungan antarfitur, sehingga model yang memodelkan interaksi lebih dari
+dua fitur dapat dicoba untuk menyempitkan selisih dengan KNN dan C4.5.
 
 Dari sisi implementasi, SVM masih dilatih pada 1.000 baris karena matriks
 kernel penuh membutuhkan memori $O(n^2)$ sehingga perlu teknik seperti

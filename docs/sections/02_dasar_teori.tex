@@ -104,9 +104,19 @@ Elastic Net menggabungkan regularisasi L1 dan L2 dalam satu fungsi penalti, deng
 Parameter $\rho\in[0,1]$ mengatur proporsi regularisasi L1 dan L2. Dengan demikian, Elastic Net menggabungkan kemampuan L1 dalam menghasilkan bobot nol dengan kemampuan L2 dalam mengendalikan besar bobot model.
 
 \subsection{Support Vector Machine}
-Support Vector Machine (SVM) merupakan algoritma klasifikasi yang mencari hiperbidang pemisah dengan margin terbesar antara kelas-kelas data. Data yang berada paling dekat dengan hiperbidang dan berperan dalam menentukan posisi batas pemisah disebut \textit{support vector}. Untuk data yang tidak dapat dipisahkan secara sempurna, SVM menggunakan pendekatan \textit{soft margin} dengan variabel \textit{slack} $\xi_i$ untuk mengakomodasi pelanggaran terhadap margin.
+Support Vector Machine (SVM) mencari batas keputusan dengan margin lebar
+antara dua kelas. Pada model linear, posisi batas ini ditentukan oleh
+persamaan $f(\mathbf{x})=\mathbf{w}^{T}\mathbf{x}+b=0$. Vektor
+$\mathbf{w}$ menentukan orientasi bidang, sedangkan intersep $b$ menggeser
+posisinya. Tanda skor $f(\mathbf{x})$ menunjukkan di sisi mana sebuah
+sampel berada. Jika $\mathbf{w}\ne 0$, lebar margin adalah jarak antara dua
+bidang sejajar dengan skor $-1$ dan $+1$, yaitu $2/\lVert\mathbf{w}\rVert$.
 
-Dengan label $y_i\in\{-1,+1\}$ dan parameter $C$ yang mengatur keseimbangan antara lebar margin dan kesalahan klasifikasi, optimasi SVM dirumuskan sebagai berikut.
+Kedua kelas bisa saling tumpang tindih. Karena itu, SVM memakai
+\textit{soft margin} agar sampel boleh berada di dalam margin atau di sisi
+yang salah dari batas keputusan. Untuk sampel ke-$i$ dengan label
+$y_i\in\{-1,+1\}$, variabel $\xi_i$ menampung besarnya pelanggaran margin.
+Parameter $C$ mengatur seberapa berat pelanggaran itu dikenai penalti.
 
 \[
 \begin{aligned}
@@ -118,14 +128,33 @@ Dengan label $y_i\in\{-1,+1\}$ dan parameter $C$ yang mengatur keseimbangan anta
 \end{aligned}
 \]
 
-Untuk menangani data yang tidak dapat dipisahkan secara linear, SVM dapat menggunakan fungsi kernel untuk menghitung kemiripan antar data tanpa harus memetakan data secara eksplisit ke ruang fitur berdimensi lebih tinggi. Pendekatan ini dikenal sebagai \textit{kernel trick}. Fungsi keputusan SVM dalam bentuk kernel dirumuskan sebagai berikut.
+Untuk membentuk batas keputusan nonlinear, SVM mengganti hasil kali dalam
+antarvektor fitur dengan nilai kernel $K(\mathbf{x}_i,\mathbf{x})$.
+Kernel menghitung nilai ini tanpa perlu membangun koordinat di ruang fitur
+baru. Cara ini dikenal sebagai \textit{kernel trick}. Skor keputusan
+merupakan jumlah kontribusi setiap sampel latih ditambah intersep:
 
 \[
 f(\mathbf{x})=
 \sum_i\alpha_i y_i K(\mathbf{x}_i,\mathbf{x})+b
 \]
 
-Optimasi SVM dapat diselesaikan melalui bentuk dual yang merupakan masalah \textit{quadratic programming}. Salah satu metode yang digunakan untuk menyelesaikannya adalah \textit{Sequential Minimal Optimization} (SMO) \cite{ref:materi-12, ref:platt-1998}.
+Koefisien $\alpha_i$ menentukan besar kontribusi sampel ke-$i$.
+Sampel dengan $\alpha_i>0$ disebut \textit{support vector} karena muncul
+dalam perhitungan skor. Dengan pengali Lagrange, pelatihan dapat dirumuskan
+sebagai masalah optimasi kuadratik dalam koefisien $\alpha_i$:
+\[
+\begin{aligned}
+\max_{\boldsymbol{\alpha}}\quad &\sum_i\alpha_i-\frac{1}{2}\sum_i\sum_j\alpha_i\alpha_j y_i y_j K(\mathbf{x}_i,\mathbf{x}_j),\\
+\text{s.t.}\quad &0\leq\alpha_i\leq C,\qquad \sum_i\alpha_i y_i=0.
+\end{aligned}
+\]
+Setiap koefisien berada di antara 0 dan $C$. Jumlah koefisien berbobot
+label harus nol. Syarat ini berasal dari turunan fungsi Lagrange terhadap
+intersep $b$ yang bernilai nol pada solusi. Optimasi dapat memperbarui
+seluruh vektor koefisien sekaligus. Alternatifnya, \textit{Sequential
+Minimal Optimization} (SMO) memperbarui dua koefisien setiap kali agar
+jumlah berbobot label tetap nol \cite{ref:materi-12, ref:platt-1998}.
 
 \subsubsection{Kernel Linear}
 Kernel linear menggunakan hasil kali dalam antara dua vektor fitur, dengan rumus berikut.
@@ -134,32 +163,40 @@ Kernel linear menggunakan hasil kali dalam antara dua vektor fitur, dengan rumus
 K(\mathbf{x},\mathbf{z})=\mathbf{x}^{T}\mathbf{z}
 \]
 
-Kernel ini menghasilkan batas pemisah linear pada ruang fitur asli dan sesuai digunakan ketika data dapat dipisahkan dengan batas linear atau ketika hubungan linear sudah cukup mewakili pola data.
+Kernel ini menghasilkan batas pemisah berupa hiperbidang pada ruang
+fitur asli. Kernel linear dapat dipakai jika batas tersebut sudah cukup
+mewakili pola data, meskipun kedua kelas tidak terpisah sempurna.
 
 \subsubsection{Kernel Polinomial}
-Kernel polinomial memungkinkan SVM memodelkan hubungan non-linear melalui interaksi antarfitur hingga derajat tertentu, dengan rumus berikut.
+Kernel polinomial mengalikan hasil kali dalam dengan $\gamma$, lalu
+menambahkan $c_0$ sebelum memangkatkannya. Operasi ini memungkinkan
+interaksi antarfitur membentuk batas keputusan nonlinear.
 
 \[
 K(\mathbf{x},\mathbf{z})=
 (\gamma\mathbf{x}^{T}\mathbf{z}+c_0)^d
 \]
 
-Parameter $d$ menentukan derajat polinomial, sedangkan $\gamma$ dan $c_0$ mengatur skala serta pergeseran fungsi kernel.
+Parameter $d$ menentukan derajat polinomial.
 
 \subsubsection{Kernel Gaussian (RBF)}
-Kernel Gaussian atau \textit{Radial Basis Function} (RBF) menghitung kemiripan berdasarkan jarak antara dua vektor fitur, dengan rumus berikut.
+Kernel Gaussian atau \textit{Radial Basis Function} (RBF) memberi nilai
+lebih tinggi pada pasangan vektor yang berdekatan.
 
 \[
 K(\mathbf{x},\mathbf{z})=
 \exp\left(-\gamma\lVert\mathbf{x}-\mathbf{z}\rVert^2\right)
 \]
 
-Parameter $\gamma$ mengatur seberapa jauh pengaruh suatu data terhadap data lainnya. Nilai $\gamma$ yang besar menghasilkan pengaruh yang lebih lokal dan batas pemisah yang lebih fleksibel, sehingga dapat meningkatkan risiko \textit{overfitting} apabila tidak dipilih dengan tepat.
+Semakin besar $\gamma$, semakin cepat nilai kernel turun ketika jarak
+bertambah. Akibatnya, pengaruh tiap sampel lebih terbatas pada lingkungan
+terdekatnya. Batas keputusan bisa lebih fleksibel, tetapi juga bisa terlalu
+mengikuti data latih (\textit{overfitting}).
 
 \subsection{Bayesian Network (Naive Bayes)}
-\textit{Naive Bayes} merupakan algoritma klasifikasi probabilistik yang didasarkan pada teorema Bayes dengan asumsi bahwa setiap fitur bersifat independen secara kondisional terhadap kelas. Dalam representasi \textit{Bayesian network}, kelas menjadi induk dari seluruh fitur, sehingga hubungan ketergantungan antarfitur tidak dimodelkan secara langsung.
+\textit{Naive Bayes} merupakan algoritma klasifikasi probabilistik yang didasarkan pada teorema Bayes dengan asumsi bahwa setiap fitur bersifat independen secara kondisional terhadap kelas \cite{ref:materi-14}. Dalam representasi \textit{Bayesian network}, kelas menjadi induk dari seluruh fitur, sehingga hubungan ketergantungan antarfitur tidak dimodelkan secara langsung.
 
-Prediksi kelas dilakukan dengan memilih kelas yang memiliki probabilitas posterior terbesar, sebagaimana dirumuskan berikut.
+Prediksi kelas dilakukan dengan memilih kelas yang memiliki probabilitas posterior terbesar (\textit{maximum a posteriori}), sebagaimana dirumuskan berikut.
 
 \[
 \hat{c}=
@@ -167,7 +204,7 @@ Prediksi kelas dilakukan dengan memilih kelas yang memiliki probabilitas posteri
 P(c)\prod_{j=1}^{d}P(x_j\mid c)
 \]
 
-Untuk fitur kategorikal, probabilitas dihitung berdasarkan frekuensi kemunculan fitur pada masing-masing kelas. \textit{Laplace smoothing} digunakan untuk menghindari probabilitas nol pada nilai yang tidak ditemukan dalam data latih, dengan rumus berikut.
+Untuk fitur kategorikal, probabilitas dihitung berdasarkan frekuensi kemunculan fitur pada masing-masing kelas. \textit{Laplace smoothing} digunakan untuk menghindari probabilitas nol pada nilai yang tidak ditemukan dalam data latih \cite{ref:materi-14}, dengan rumus berikut.
 
 \[
 P(x_j=v\mid c)=
@@ -175,9 +212,9 @@ P(x_j=v\mid c)=
 {n_c+\alpha|V_j|}
 \]
 
-Pada rumus tersebut, $n_{c,j,v}$ menyatakan jumlah data kelas $c$ yang memiliki nilai $v$ pada fitur ke-$j$, $n_c$ menyatakan jumlah data pada kelas $c$, $|V_j|$ menyatakan banyaknya nilai yang mungkin pada fitur ke-$j$, dan $\alpha$ merupakan parameter smoothing.
+Pada rumus tersebut, $n_{c,j,v}$ menyatakan jumlah data kelas $c$ yang memiliki nilai $v$ pada fitur ke-$j$, $n_c$ menyatakan jumlah data pada kelas $c$, $|V_j|$ menyatakan banyaknya nilai yang mungkin pada fitur ke-$j$, dan $\alpha$ merupakan parameter smoothing. Prior kelas diperhalus dengan cara yang sama, yaitu $P(c)=(n_c+\alpha)/(n+\alpha K)$ dengan $n$ jumlah data dan $K$ jumlah kelas.
 
-Untuk fitur numerik, Naive Bayes dapat menggunakan distribusi Gaussian dalam memperkirakan probabilitas fitur pada setiap kelas. Perhitungan probabilitas biasanya dilakukan dalam bentuk logaritma untuk menghindari masalah \textit{underflow} akibat perkalian probabilitas yang sangat kecil \cite{ref:manning-2008}.
+Teknik ini hanya mengenal fitur kategorikal, sehingga fitur kontinu diubah menjadi kategori melalui \textit{binning}, yaitu pengelompokan nilai kontinu ke dalam interval \cite{ref:materi-09}. Dougherty dkk. melaporkan bahwa semua metode diskretisasi yang mereka uji meningkatkan akurasi rata-rata \textit{Naive Bayes} dibandingkan dengan asumsi distribusi Gaussian pada fitur kontinu \cite{ref:dougherty-1995}. Nilai kosong dapat dikodekan sebagai kategori tersendiri, misalnya \textit{Unknown} \cite{ref:materi-09}, atau dilewati dengan menjumlahkan variabel yang tidak diketahui dari perhitungan peluang \cite{ref:materi-14}. Perhitungan probabilitas dilakukan dalam bentuk logaritma untuk menghindari masalah \textit{underflow} akibat perkalian probabilitas yang sangat kecil \cite{ref:manning-2008}.
 
 \subsection{Validasi dan Metrik Evaluasi}
 Evaluasi model dilakukan menggunakan data yang tidak digunakan dalam proses pelatihan untuk mengukur kemampuan model dalam memprediksi data baru. Salah satu metode yang dapat digunakan adalah \textit{hold-out} atau \textit{train-test split}, yaitu membagi data menjadi data latih dan data uji. Selain itu, \textit{k-fold cross-validation} membagi data menjadi $k$ partisi yang digunakan secara bergantian sebagai data validasi, sementara partisi lainnya digunakan untuk pelatihan \cite{ref:materi-13}.
