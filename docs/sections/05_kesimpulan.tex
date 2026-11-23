@@ -20,7 +20,7 @@ menghasilkan metrik klasifikasi yang sama untuk setiap kernel, tetapi
 SMO lebih cepat daripada QP pada pengukuran tersebut. C4.5 berbeda karena algoritma pembandingnya adalah CART,
 tetapi hasilnya tetap sebanding.
 
-dalam perbandingan awal validasi silang lima lipatan, KNN (F1 macro 0,832)
+Dalam perbandingan awal validasi silang lima lipatan, KNN (F1 macro 0,832)
 dan C4.5 (0,830) memberikan performa terbaik dengan selisih lebih kecil
 daripada variasi antar-fold. SVM linear pada perbandingan itu masih memakai
 1.000 baris latih per lipatan. Dalam eksperimen lanjutan SVM, SMO RBF dengan
@@ -32,7 +32,11 @@ lima lipatan. Tree Augmented Naive Bayes (bonus) menaikkan F1 macro Naive Bayes
 dari 0,748 menjadi 0,775 dengan memodelkan ketergantungan antarfitur, tetapi
 belum menyamai KNN dan C4.5. Pada bonus, penggeseran ambang menjadi 0,667 untuk
 \textit{cost-sensitive classification} menurunkan total biaya pada semua model yang dievaluasi,
-dengan biaya terendah dicapai KNN (5.093). Visualisasi pohon, video lintasan
+dengan biaya terendah dicapai KNN (5.093). Pada bonus optimasi
+\textit{Logistic Regression}, \textit{conjugate gradient ascent} dan L-BFGS
+dengan L2 konvergen dalam sekitar 100 iterasi, sedangkan \textit{gradient
+ascent} belum konvergen setelah 2.000 iterasi. Metrik validasi ketiganya hampir
+sama, jadi keuntungannya ada pada waktu pelatihan. Visualisasi pohon, video lintasan
 parameter \textit{Logistic Regression}, dan graf \textit{Naive Bayes} juga
 berhasil dibuat untuk membantu menjelaskan perilaku model.
 
@@ -56,8 +60,14 @@ selesai dalam batas waktu pengukuran. Karena itu, penggunaan cache lebih
 sesuai saat batas RAM menjadi pertimbangan utama. Matriks penuh tetap
 menjadi bawaan SMO dan selalu dipakai pada QP.
 Implementasi \textit{Logistic Regression} dengan \textit{Elastic Net} juga jauh
-lebih lambat daripada scikit-learn sehingga dapat dipercepat dengan
-laju belajar adaptif atau \textit{solver} yang lebih efisien. Terakhir, laporan
+lebih lambat daripada scikit-learn. L-BFGS dan \textit{conjugate gradient} yang
+sudah dibuat hanya mendukung tanpa penalti dan L2, sehingga L1 dan
+\textit{Elastic Net} masih memakai \textit{gradient ascent}. Metode untuk
+objektif yang tidak mulus, misalnya \textit{proximal gradient} atau
+\textit{coordinate descent}, dapat dicoba untuk kedua penalti tersebut.
+\textit{Conjugate gradient} tanpa penalti juga belum konvergen, kemungkinan
+karena kolom \textit{one-hot} yang lengkap membuat Hessian singular. Hal ini
+dapat diuji dengan membuang satu kolom per fitur kategorikal. Terakhir, laporan
 ini belum memuat skor \textit{leaderboard} Kaggle untuk seluruh model, sehingga
 pengujian pada data uji perlu dilengkapi untuk memastikan hasil validasi dapat
 digeneralisasi.
