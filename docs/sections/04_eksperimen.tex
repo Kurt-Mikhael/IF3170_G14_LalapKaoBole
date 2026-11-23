@@ -154,6 +154,71 @@ Gambar~\ref{fig:logreg}.
 \label{fig:logreg}
 \end{figure}
 
+\paragraph{Perbandingan \textit{solver} (bonus).}
+\textit{Gradient ascent}, \textit{conjugate gradient ascent}, dan L-BFGS
+dibandingkan pada pembagian latih dan validasi yang sama, tanpa penalti dan
+dengan L2 ($\lambda=0{,}001$). Semua \textit{solver} memakai seluruh data,
+mulai dari parameter nol, dengan batas 2.000 iterasi dan $\texttt{tol}=10^{-7}$.
+Waktu diukur satu kali per konfigurasi dengan satu utas BLAS. Kriteria berhenti
+\textit{gradient ascent} berbeda dengan dua \textit{solver} lain, sehingga
+tabel juga mencantumkan norma tak hingga gradien pada akhir pelatihan.
+
+\begin{table}[H]
+\centering
+\small
+\caption{Perbandingan \textit{solver} \textit{Logistic Regression} pada data validasi}
+\label{tab:logreg-solver}
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{@{}llcccrrc@{}}
+\toprule
+Penalti & \textit{Solver} & F1 macro & \textit{Log-loss} & $\lVert\mathbf{g}\rVert_\infty$ & Iterasi & Waktu (s) & Konvergen \\
+\midrule
+Tanpa & \textit{Gradient ascent} & 0,7560 & 0,44138 & $8{,}2\times10^{-4}$ & 2.000 & 7,45 & Tidak \\
+ & \textit{Conjugate gradient} & 0,7565 & 0,44079 & $1{,}3\times10^{-6}$ & 2.000 & 5,61 & Tidak \\
+ & L-BFGS & 0,7565 & 0,44079 & $9{,}5\times10^{-8}$ & 450 & 0,93 & Ya \\
+\midrule
+L2 & \textit{Gradient ascent} & 0,7546 & 0,44145 & $7{,}8\times10^{-4}$ & 2.000 & 6,71 & Tidak \\
+ & \textit{Conjugate gradient} & 0,7557 & 0,44081 & $6{,}7\times10^{-8}$ & 106 & 0,30 & Ya \\
+ & L-BFGS & 0,7557 & 0,44081 & $8{,}8\times10^{-8}$ & 102 & 0,21 & Ya \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Pada L2, \textit{conjugate gradient} dan L-BFGS konvergen dalam sekitar 100
+iterasi dan selesai dalam 0,2 sampai 0,3 detik, sekitar 22 sampai 32 kali lebih
+cepat daripada \textit{gradient ascent} yang masih belum konvergen setelah
+2.000 iterasi. Kurva pada Gambar~\ref{fig:logreg-solver} menunjukkan hal yang
+sama: \textit{loss} kedua \textit{solver} turun hampir tegak pada beberapa
+iterasi awal, sedangkan \textit{gradient ascent} masih turun perlahan sampai
+akhir. Objektif akhir \textit{gradient ascent} juga sedikit lebih buruk
+(0,43699 dibanding 0,43644 pada data latih).
+
+Tanpa penalti, hanya L-BFGS yang konvergen. \textit{Conjugate gradient}
+sudah mencapai objektif yang sama dengan L-BFGS hingga lima desimal, tetapi
+norma gradiennya bertahan di sekitar $10^{-6}$ sampai batas iterasi. Dugaan
+kami, penyebabnya adalah kolom \textit{one-hot} yang lengkap. Jumlah kolom
+dari satu fitur kategorikal selalu bernilai satu, sama dengan kolom bias,
+sehingga ada arah parameter yang tidak mengubah prediksi dan Hessian-nya
+singular. Langkah Newton sepanjang arah seperti itu tidak terdefinisi dengan
+baik. Penalti L2 membuat Hessian definit pada arah tersebut, dan itu sejalan
+dengan hasil L2 yang konvergen cepat. Dugaan ini belum diuji secara terpisah.
+
+Perbedaan metrik validasi antar-\textit{solver} sangat kecil, paling besar
+0,0011 pada F1 macro. Artinya, ketiga \textit{solver} menuju model yang
+hampir sama dan keuntungan utamanya ada pada waktu pelatihan dan kepastian
+konvergensi, bukan pada akurasi. Hasil ini sejalan dengan temuan Minka bahwa
+\textit{conjugate gradient} dan \textit{quasi-Newton} termasuk metode tercepat
+untuk \textit{logistic regression} \cite{ref:minka-2003}. Kekurangannya, kedua
+\textit{solver} hanya mendukung tanpa penalti dan L2, jadi L1 dan
+\textit{Elastic Net} tetap memakai \textit{gradient ascent}.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=\textwidth]{figures/logreg_optimizer_loss.png}
+\caption{Kurva \textit{loss} pelatihan tiga \textit{solver}, tanpa penalti (kiri) dan dengan L2 (kanan). Kurva \textit{conjugate gradient} pada panel kanan tertutup kurva L-BFGS}
+\label{fig:logreg-solver}
+\end{figure}
+
 \subsubsection{Support Vector Machine}
 
 Percobaan ini membandingkan pengaruh kernel dan cara optimasi pada
@@ -636,7 +701,9 @@ memanfaatkan optimasi \textit{library}. Implementasi \textit{Logistic
 Regression} sendiri lebih lambat pada L1 dan terutama pada \textit{Elastic Net}
 karena memakai \textit{gradient ascent} penuh sampai \textit{loss} stabil,
 sedangkan SAGA lebih efisien. Pada varian tanpa penalti, implementasi sendiri
-justru lebih cepat.
+justru lebih cepat. Untuk varian tanpa penalti dan L2, waktu ini dapat ditekan
+dengan \textit{solver} L-BFGS atau \textit{conjugate gradient} yang selesai
+dalam kurang dari satu detik (Tabel~\ref{tab:logreg-solver}).
 
 \begin{table}[H]
 \centering
