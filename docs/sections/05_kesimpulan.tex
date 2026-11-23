@@ -15,22 +15,23 @@ pembagian data memakai StratifiedGroupKFold agar baris yang identik
 tidak berada pada data latih dan validasi sekaligus. Hasil implementasi sendiri
 sesuai dengan scikit-learn. KNN dan \textit{Naive Bayes} menghasilkan
 probabilitas yang hampir identik, dan selisih metrik \textit{Logistic Regression}
-kurang dari 0,002. C4.5 berbeda karena algoritma pembandingnya adalah CART,
+kurang dari 0,002. Pada tolok ukur awal SVM, QP, SMO, dan \texttt{SVC}
+menghasilkan metrik klasifikasi yang sama untuk setiap kernel, tetapi
+SMO lebih cepat daripada QP pada pengukuran tersebut. C4.5 berbeda karena algoritma pembandingnya adalah CART,
 tetapi hasilnya tetap sebanding.
 
-Berdasarkan \textit{5-fold cross-validation}, KNN (F1 macro 0,832) dan C4.5
-(0,830) memberikan performa terbaik dengan selisih yang lebih kecil daripada
-variasi antar-\textit{fold}, sehingga keduanya dapat dianggap setara.
-Keduanya unggul karena mampu menangkap pola nonlinear dan interaksi antarfitur,
-sedangkan \textit{Logistic Regression} (0,759), SVM berkernel linear (0,754),
-dan \textit{Naive Bayes} (0,748) hanya membentuk batas yang lebih sederhana atau
-mengasumsikan fitur saling bebas. Menambahkan pohon ketergantungan antarfitur
-lewat \textit{Tree Augmented Naive Bayes} (bonus) menaikkan F1 macro
-\textit{Naive Bayes} menjadi 0,775, sehingga asumsi independensi memang ikut
-menurunkan skornya, tetapi belum cukup untuk menyamai KNN dan C4.5. Seluruh model berada jauh di atas
-\textit{baseline} 0,675, tetapi \textit{recall} kelas batal baru mencapai 0,60
-sampai 0,74. Pada bonus, penggeseran \textit{threshold} menjadi 0,667 untuk
-\textit{cost-sensitive classification} menurunkan total biaya pada semua model,
+dalam perbandingan awal validasi silang lima lipatan, KNN (F1 macro 0,832)
+dan C4.5 (0,830) memberikan performa terbaik dengan selisih lebih kecil
+daripada variasi antar-fold. SVM linear pada perbandingan itu masih memakai
+1.000 baris latih per lipatan. Dalam eksperimen lanjutan SVM, SMO RBF dengan
+12.000 baris memperoleh F1 makro rata-rata 0,818690 pada data pengembangan.
+Konfigurasi terpilih memakai 16.000 baris dan mencapai 0,821126 pada data
+pengembangan serta 0,830948 pada 5.475 baris \textit{holdout}. Angka
+\textit{holdout} ini tidak langsung sebanding dengan rata-rata validasi silang
+lima lipatan. Tree Augmented Naive Bayes (bonus) menaikkan F1 macro Naive Bayes
+dari 0,748 menjadi 0,775 dengan memodelkan ketergantungan antarfitur, tetapi
+belum menyamai KNN dan C4.5. Pada bonus, penggeseran ambang menjadi 0,667 untuk
+\textit{cost-sensitive classification} menurunkan total biaya pada semua model yang dievaluasi,
 dengan biaya terendah dicapai KNN (5.093). Visualisasi pohon, video lintasan
 parameter \textit{Logistic Regression}, dan graf \textit{Naive Bayes} juga
 berhasil dibuat untuk membantu menjelaskan perilaku model.
@@ -40,17 +41,20 @@ berhasil dibuat untuk membantu menjelaskan perilaku model.
 Untuk pengembangan lebih lanjut, disarankan mencoba model \textit{ensemble}
 seperti \textit{Random Forest} atau \textit{gradient boosting} yang menggabungkan
 kelebihan pohon keputusan, serta melakukan \textit{hyperparameter tuning} yang
-lebih ekstensif. Rekayasa fitur tambahan, misalnya fitur interaksi untuk model
-linear, juga berpotensi meningkatkan \textit{Logistic Regression} dan SVM.
-Karena \textit{recall} kelas batal masih rendah, pemilihan \textit{threshold}
-yang dioptimalkan langsung terhadap \textit{Macro F1} atau terhadap biaya
-dapat dicoba. Pada \textit{Naive Bayes}, TAN menaikkan skor dengan memodelkan
-ketergantungan antarfitur, sehingga model yang memodelkan interaksi lebih dari
-dua fitur dapat dicoba untuk menyempitkan selisih dengan KNN dan C4.5.
+lebih ekstensif. Fitur interaksi dapat diuji pada \textit{Logistic Regression}.
+Ambang SVM terpilih dioptimalkan untuk F1 makro; jika sasaran berubah menjadi
+biaya, ambang skor keputusan dapat dipilih ulang berdasarkan biaya pada data
+validasi. Karena TAN menunjukkan bahwa ketergantungan antarfitur meningkatkan
+skor Naive Bayes, model yang menangkap interaksi lebih dari dua fitur dapat
+dicoba untuk menyempitkan selisih dengan KNN dan C4.5.
 
-Dari sisi implementasi, SVM masih dilatih pada 1.000 baris karena matriks
-kernel penuh membutuhkan memori $O(n^2)$ sehingga perlu teknik seperti
-\textit{kernel cache} dan \textit{shrinking} agar dapat memakai seluruh data.
+Dari sisi implementasi, cache LRU membatasi memori untuk penyimpanan nilai
+kernel SMO. Pada pengukuran dengan 4.000 sampel, penggunaan RAM proses turun
+dengan label prediksi yang sama, tetapi pelatihan lebih lama
+(Tabel~\ref{tab:svm-cache}). Pada 16.000 sampel, pengujian cache 512 MiB tidak
+selesai dalam batas waktu pengukuran. Karena itu, penggunaan cache lebih
+sesuai saat batas RAM menjadi pertimbangan utama. Matriks penuh tetap
+menjadi bawaan SMO dan selalu dipakai pada QP.
 Implementasi \textit{Logistic Regression} dengan \textit{Elastic Net} juga jauh
 lebih lambat daripada scikit-learn sehingga dapat dipercepat dengan
 laju belajar adaptif atau \textit{solver} yang lebih efisien. Terakhir, laporan

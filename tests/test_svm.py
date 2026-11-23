@@ -11,9 +11,84 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from models import SVM
 from models.svm import gaussian_kernel, linear_kernel, polynomial_kernel
+from models.svm.kernel import _KernelRowCache
 
 
 class SVMTests(unittest.TestCase):
+    def test_kernel_row_cache_hits_and_evicts_least_recently_used(self):
+        calls = []
+
+        def make_row(index):
+            calls.append(index)
+            return np.full(4, index, dtype=float)
+
+        cache = _KernelRowCache(2, make_row)
+        np.testing.assert_array_equal(cache.row(0), np.zeros(4))
+        cache.row(1)
+        cache.row(0)  # Refresh row 0 before row 2 evicts row 1.
+        cache.row(2)
+        self.assertEqual(cache.capacity, 2)
+        self.assertEqual(len(cache), 2)
+        self.assertEqual(calls, [0, 1, 2])
+        np.testing.assert_array_equal(cache.row(0), np.zeros(4))
+        cache.row(1)
+        self.assertEqual(calls, [0, 1, 2, 1])
+
+    def test_cache_budget_validates_and_is_an_estimator_parameter(self):
+        self.assertIsNone(SVM().get_params()['cache_size_mb'])
+        model = SVM(cache_size_mb=0.25)
+        self.assertEqual(model.get_params()['cache_size_mb'], 0.25)
+        self.assertEqual(SVM(**model.get_params()).get_params(), model.get_params())
+        from sklearn.base import clone
+        self.assertEqual(clone(model).get_params(), model.get_params())
+        for value in (0, -1, np.inf, np.nan, True, '512'):
+            with self.subTest(value=value), self.assertRaises(ValueError):
+                SVM(cache_size_mb=value).fit(self.X, self.y)
+        self.assertIsInstance(SVM(cache_size_mb=None).fit(self.X, self.y), SVM)
+
+    def test_cached_smo_matches_dense_for_each_kernel_without_dense_gram(self):
+        rng = np.random.default_rng(31)
+        X = rng.normal(size=(12, 3))
+        y = np.r_[np.zeros(6), np.ones(6)]
+        X[6:] += 1.5
+        for kernel in ('linear', 'poly', 'rbf'):
+            with self.subTest(kernel=kernel):
+                dense = SVM(kernel=kernel, cache_size_mb=None, random_state=4, tol=1e-5).fit(X, y)
+                def not_dense(function):
+                    def checked(left, right, **kwargs):
+                        self.assertNotEqual((len(left), len(right)), (len(X), len(X)))
+                        return function(left, right, **kwargs)
+                    return checked
+
+                # A row needs 96 bytes. Exercise both a two-row LRU and no retention.
+                for budget in (2e-4, 1e-6):
+                    with (
+                        self.subTest(cache_size_mb=budget),
+                        patch('models.svm.svm.linear_kernel', side_effect=not_dense(linear_kernel)),
+                        patch('models.svm.svm.polynomial_kernel', side_effect=not_dense(polynomial_kernel)),
+                        patch('models.svm.svm.gaussian_kernel', side_effect=not_dense(gaussian_kernel)),
+                    ):
+                        cached = SVM(kernel=kernel, cache_size_mb=budget, random_state=4, tol=1e-5).fit(X, y)
+                        self.assertTrue(dense.converged_ and cached.converged_)
+                        np.testing.assert_array_equal(cached.predict(X), dense.predict(X))
+                        np.testing.assert_allclose(cached.decision_function(X), dense.decision_function(X), atol=3e-5)
+                        np.testing.assert_allclose(cached._alphas, dense._alphas, atol=3e-5)
+                        self.assertFalse(any(isinstance(value, _KernelRowCache) for value in cached.__dict__.values()))
+
+    def test_legacy_estimator_without_cache_parameter_can_refit(self):
+        model = SVM().fit(self.X, self.y)
+        del model.cache_size_mb
+        self.assertIsNone(model.get_params()['cache_size_mb'])
+        model.fit(self.X, self.y)
+
+    def test_cached_kernel_failure_clears_fitted_state(self):
+        X = np.array([[-1e200], [1e200]])
+        model = SVM(kernel='rbf', gamma=1, cache_size_mb=1e-9)
+        with np.errstate(over='ignore', invalid='ignore'), self.assertRaises(ValueError):
+            model.fit(X, [0, 1])
+        with self.assertRaises(RuntimeError):
+            model.predict([[0.]])
+
     def test_score_rejects_broadcasting_labels(self):
         model = SVM().fit(self.X, self.y)
         for y in (self.y[:, None], [0], 0):

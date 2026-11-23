@@ -42,6 +42,9 @@ mesin dari awal (\textit{from scratch}), yaitu K-Nearest Neighbors (KNN),
 dan \textit{Naive Bayesian Network}. Hasil implementasi kemudian dibandingkan
 dengan algoritma sejenis yang tersedia pada pustaka \texttt{scikit-learn} untuk
 mengevaluasi kinerja masing-masing pendekatan.
+Khusus untuk SVM, eksperimen membandingkan dua cara untuk menyelesaikan
+masalah optimasi yang sama, yaitu optimasi kuadratik (QP) secara langsung
+dan \textit{Sequential Minimal Optimization} (SMO), pada tiga kernel.
 
 Evaluasi model menggunakan \textit{Macro F1-score} sebagai metrik utama sesuai
 dengan ketentuan kompetisi. Metrik ini memperhitungkan kinerja prediksi pada
@@ -111,10 +114,11 @@ uji, model menghasilkan salah satu dari kedua label tersebut.
         kapan atau mengapa pembatalan terjadi. Hubungan antara suatu atribut dan
         hasil prediksi tidak membuktikan bahwa atribut tersebut menyebabkan
         pembatalan.
-    \item \textbf{Cakupan evaluasi.} Skor F1 makro mengukur kinerja klasifikasi,
+    \item \textbf{Cakupan evaluasi.} Hasil SVM dari tolok ukur awal dan
+        evaluasi konfigurasi terpilih dilaporkan terpisah karena ukuran sampel
+        latih dan pembagian datanya berbeda. Skor F1 makro mengukur kinerja klasifikasi,
         bukan dampak finansial dari kesalahan prediksi. Skor tersebut tidak
         menjadi dasar langsung untuk menetapkan kebijakan pembatalan atau
         menentukan berapa banyak pemesanan yang boleh diterima melebihi
         kapasitas.
 \end{enumerate}
-

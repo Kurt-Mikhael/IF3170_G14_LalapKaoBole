@@ -152,7 +152,10 @@ class C45DecisionTree:
             best = int(np.argmax(gains))
 
             # Threshold dipilih dengan Gain terbesar 
-            threshold = (values[cuts[best]] + values[cuts[best] + 1]) / 2
+            lower, upper = values[cuts[best]], values[cuts[best] + 1]
+            threshold = (lower + upper) / 2
+            if not lower <= threshold < upper:
+                threshold = lower
             counts = np.vstack([left[best], right[best]])
 
         # Gain hanya dari data yang nilainya diketahui, dikali fraksinya 

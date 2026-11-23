@@ -1,4 +1,5 @@
 import math
+import pickle
 import sys
 import tempfile
 import unittest
@@ -9,6 +10,7 @@ import numpy as np
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from models import NaiveBayesClassifier
+from models.booking_feature_search import _estimator
 
 # Dataset Play Tennis klasik.
 # outlook: Sunny=0 Overcast=1 Rain=2 | temp: Hot=0 Mild=1 Cool=2
@@ -37,6 +39,52 @@ HOTEL_X = [
 HOTEL_Y = [1, 1, 1, 0, 0, 1, 0, 0, 0, 0]
 
 class NaiveBayesTests(unittest.TestCase):
+    def test_booking_feature_search_predicts_with_mixed_binary_features(self):
+        X = np.array([
+            [0, 0.1], [1, 0.2], [0, 0.3], [1, 0.4],
+            [0, 9.7], [1, 9.8], [0, 9.9], [1, 10.0],
+        ])
+        y = np.array([0, 0, 0, 0, 1, 1, 1, 1])
+        model = _estimator("naive_bayes", X, seed=0).fit(X, y)
+
+        np.testing.assert_array_equal(model.predict([[0, 0.2], [1, 9.8]]), [0, 1])
+
+    def test_upstream_and_legacy_mixed_pickle_parameter_schemas_predict(self):
+        upstream = NaiveBayesClassifier(alpha=2.0)
+        upstream.classes_ = np.array([0, 1])
+        upstream.class_log_prior_ = [math.log(0.5), math.log(0.5)]
+        upstream.feature_params_ = [{
+            "log_prob": [{0.0: math.log(0.9), 1.0: math.log(0.1)},
+                         {0.0: math.log(0.1), 1.0: math.log(0.9)}],
+            "log_unseen": [math.log(0.01), math.log(0.01)],
+        }]
+        del upstream.feature_types, upstream.var_smoothing
+
+        legacy_mixed = NaiveBayesClassifier(
+            alpha=2.0, feature_types=["categorical", "gaussian"]
+        )
+        legacy_mixed.classes_ = np.array([0, 1])
+        legacy_mixed.class_log_prior_ = [math.log(0.5), math.log(0.5)]
+        legacy_mixed.feature_params_ = [
+            {
+                "kind": "categorical",
+                "log_prob": [{0.0: math.log(0.9), 1.0: math.log(0.1)},
+                             {0.0: math.log(0.1), 1.0: math.log(0.9)}],
+                "log_unseen": [math.log(0.01), math.log(0.01)],
+            },
+            {"kind": "gaussian", "means": [0.0, 10.0], "variances": [1.0, 1.0]},
+        ]
+
+        with tempfile.TemporaryDirectory() as folder:
+            paths = [Path(folder) / "upstream.pkl", Path(folder) / "mixed.pkl"]
+            for model, path in zip((upstream, legacy_mixed), paths):
+                with path.open("wb") as file:
+                    pickle.dump(model, file)
+            restored = [NaiveBayesClassifier.load(path) for path in paths]
+
+        np.testing.assert_array_equal(restored[0].predict([[0.0], [1.0]]), [0, 1])
+        np.testing.assert_array_equal(restored[1].predict([[0.0, 0.1], [1.0, 9.9]]), [0, 1])
+
     def test_play_tennis_matches_hand_calculation(self):
         # query <Sunny, Cool, High, Strong>, skor dihitung manual tanpa smoothing
         model = NaiveBayesClassifier(alpha=0).fit(TENNIS_X, TENNIS_Y)

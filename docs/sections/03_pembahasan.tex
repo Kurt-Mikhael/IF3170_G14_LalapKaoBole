@@ -185,526 +185,35 @@ def fit(self, X, y):
     return self
 \end{lstlisting}
 
-Metode \texttt{fit} hanya menyimpan salinan data latih dan mengubah label
-menjadi indeks kelas $0, 1, \dots$ agar mudah dihitung dengan
-\texttt{np.bincount}. Tidak ada proses pembelajaran pada tahap ini.
+Metode \texttt{fit} memvalidasi masukan, menyimpan data latih, dan
+menjalankan solver yang dipilih.
 
-\begin{lstlisting}
-@staticmethod
-def _k_smallest(values, k):
-    kth = np.partition(values, k - 1, axis=1)[:, k - 1]
-    result = np.empty((len(values), k), dtype=int)
-    for row, (row_values, limit) in enumerate(zip(values, kth)):
-        candidates = np.flatnonzero(row_values <= limit)
-        result[row] = candidates[np.argsort(row_values[candidates], kind="stable")[:k]]
-    return result
-\end{lstlisting}
+Solver QP membentuk
+matriks kernel penuh $K$ berukuran $n\times n$ dan matriks $Q$. Solver SMO
+juga memakai matriks penuh kecuali jalur cache LRU dipilih berdasarkan anggaran.
+Pada jalur tersebut, SMO meminta baris kernel saat diperlukan. Elemen
+$K_{ij}=K(\mathbf{x}_i,\mathbf{x}_j)$ disimpan sebagai \textit{float64},
+dengan indeks baris data latih sebagai kunci. Cache bersifat lokal pada setiap
+pemanggilan \texttt{fit}: hit memperbarui posisi baris menjadi paling baru,
+sedangkan miss menghitung baris tersebut dan, jika kapasitas penuh,
+mengeluarkan baris yang paling lama tidak digunakan.
 
-Fungsi ini mengambil indeks $k$ nilai terkecil pada tiap baris matriks jarak.
-\texttt{np.partition} mencari nilai ke-$k$ tanpa mengurutkan seluruh data
-latih, lalu hanya kandidat yang nilainya tidak lebih besar dari nilai tersebut
-yang diurutkan. Urutan \textit{stable} membuat tetangga dengan jarak sama
-dipilih berdasarkan indeks terkecil sehingga hasilnya deterministik.
-
-\begin{lstlisting}
-def _neighbor_indices_and_distances(self, X):
-    X_array = self._as_2d_features(X)
-    train_norms = np.sum(self._X_train ** 2, axis=1)
-    nearest = np.empty((len(X_array), self.n_neighbors), dtype=int)
-    distances = np.empty((len(X_array), self.n_neighbors), dtype=float)
-    for start in range(0, len(X_array), self.batch_size):
-        batch = X_array[start : start + self.batch_size]
-        squared = (np.sum(batch ** 2, axis=1)[:, None]
-                   + train_norms[None, :] - 2 * batch @ self._X_train.T)
-        order = self._k_smallest(squared, self.n_neighbors)
-        diff = batch[:, None, :] - self._X_train[order]
-        nearest[start : start + len(batch)] = order
-        distances[start : start + len(batch)] = np.sqrt(np.sum(diff ** 2, axis=2))
-    return nearest, distances
-\end{lstlisting}
-
-Fungsi ini mencari tetangga terdekat dan jaraknya untuk seluruh data uji.
-Jarak dihitung per \textit{batch} dengan identitas
-$\lVert a-b\rVert^2=\lVert a\rVert^2+\lVert b\rVert^2-2a\cdot b$ sehingga
-matriks jarak penuh tidak perlu disimpan dan memori tetap terjaga. Setelah
-$k$ tetangga terpilih, jaraknya dihitung ulang secara langsung dari selisih
-vektor untuk menghindari galat pembulatan dari identitas tersebut.
-
-\begin{lstlisting}
-def predict_proba(self, X):
-    nearest, distances = self._neighbor_indices_and_distances(X)
-    neighbour_labels = self._y_encoded[nearest]
-    probabilities = np.zeros((len(nearest), len(self.classes_)))
-    for i, (labels, d) in enumerate(zip(neighbour_labels, distances)):
-        if self.weights == "uniform":
-            votes = np.ones_like(d)
-        else:
-            exact = d == 0
-            votes = exact.astype(float) if exact.any() else 1.0 / d
-        probabilities[i] = np.bincount(labels, weights=votes, minlength=len(self.classes_))
-        probabilities[i] /= probabilities[i].sum()
-    return probabilities
-\end{lstlisting}
-
-Fungsi ini menghitung probabilitas tiap kelas dari suara tetangga. Pada bobot
-\texttt{uniform} setiap tetangga bernilai satu suara, sedangkan pada
-\texttt{distance} suara bernilai $1/d$ sehingga tetangga yang dekat lebih
-berpengaruh. Jika ada tetangga dengan jarak nol, hanya tetangga tersebut yang
-dihitung agar tidak terjadi pembagian dengan nol. Hasilnya dinormalkan menjadi
-probabilitas.
-
-\begin{lstlisting}
-def predict(self, X):
-    return self.classes_[np.argmax(self.predict_proba(X), axis=1)]
-\end{lstlisting}
-
-Fungsi ini memilih kelas dengan probabilitas terbesar. Jika hasil pemungutan
-suara seri, \texttt{np.argmax} memilih kelas yang pertama pada
-\texttt{classes\_}.
-
-\subsubsection{Implementasi Decision Tree Learning}
-
-Algoritma yang dipilih adalah C4.5 (\texttt{src/models/c45/c45.py}) dan
-diimplementasikan lewat dua kelas. Kelas \texttt{TreeNode} merepresentasikan
-satu simpul pohon, yaitu menyimpan distribusi kelas, atribut dan ambang uji,
-cabang anak, serta probabilitas cabang $p_i$. Kelas \texttt{C45DecisionTree}
-membangun pohon secara rekursif dengan kriteria \textit{gain ratio}, menangani
-nilai kosong dengan bobot pecahan, memangkas pohon dengan \textit{Reduced Error
-Pruning}, dan melakukan prediksi. Selain itu terdapat fungsi bantu
-\texttt{entropy} dan \texttt{is\_missing} pada tingkat modul.
-
-\begin{lstlisting}
-def entropy(counts):
-    counts = np.asarray(counts, dtype=float)
-    total = counts.sum(axis=-1, keepdims=True)
-    p = np.divide(counts, total, out=np.zeros_like(counts), where=total > 0)
-    log_p = np.log2(p, out=np.zeros_like(p), where=p > 0)
-    return -(p * log_p).sum(axis=-1)
-\end{lstlisting}
-
-Fungsi ini menghitung entropi dari jumlah (bobot) data tiap kelas. Masukan
-dapat berupa vektor atau matriks sehingga entropi banyak kandidat pemisahan
-dapat dihitung sekaligus tanpa \textit{loop}. Suku dengan probabilitas nol
-dianggap bernilai nol agar tidak menghasilkan $\log 0$.
-
-\begin{lstlisting}
-class TreeNode:
-    def __init__(self, counts):
-        self.distribution = counts / counts.sum()
-        self.prediction = int(np.argmax(counts))
-        self.feature = None
-        self.threshold = None
-        self.children = {}
-        self.probabilities = {}
-        self.validation_errors = 0.0
-
-    def is_leaf(self):
-        return self.feature is None
-\end{lstlisting}
-
-Konstruktor \texttt{TreeNode} menerima jumlah bobot tiap kelas pada simpul
-tersebut. Dari jumlah itu dihitung proporsi kelas (\texttt{distribution}) dan
-kelas mayoritas (\texttt{prediction}). Simpul dengan \texttt{feature} kosong
-adalah daun. Nilai \texttt{threshold} kosong menandakan atribut kategorikal,
-\texttt{children} memetakan nilai cabang ke simpul anak, dan
-\texttt{probabilities} menyimpan $p_i$ tiap cabang. Atribut
-\texttt{validation\_errors} dipakai saat \textit{pruning}.
-
-\begin{lstlisting}
-def fit(self, X, y):
-    self.feature_names = list(X.columns)
-    self.classes, self.train_y = np.unique(np.asarray(y), return_inverse=True)
-    self.is_categorical, self.train_columns, self.train_missing = [], [], []
-    for name in self.feature_names:
-        if X[name].dtype == object:
-            column = X[name].to_numpy(dtype=object)
-            missing = np.array([is_missing(v) for v in column])
-        else:
-            column = X[name].to_numpy(dtype=float)
-            missing = np.isnan(column)
-        self.is_categorical.append(X[name].dtype == object)
-        self.train_columns.append(column)
-        self.train_missing.append(missing)
-
-    all_rows = np.arange(len(self.train_y))
-    self.root = self.build_tree(all_rows, np.ones(len(all_rows)),
-                                set(range(len(self.feature_names))))
-    del self.train_columns, self.train_missing, self.train_y
-    return self
-\end{lstlisting}
-
-Metode \texttt{fit} menyiapkan data dalam bentuk kolom NumPy, menentukan
-atribut mana yang kategorikal (bertipe \texttt{object}), dan mencatat posisi
-nilai kosong pada tiap kolom. Setiap baris latih mulai dengan bobot $1$. Pohon
-dibangun dari akar lewat \texttt{build\_tree}, lalu data latih dibuang agar
-model yang disimpan tidak membawa data.
-
-\begin{lstlisting}
-def build_tree(self, rows, weights, attributes):
-    counts = np.bincount(self.train_y[rows], weights=weights, minlength=len(self.classes))
-    node = TreeNode(counts)
-    if np.count_nonzero(counts) <= 1 or not attributes:
-        return node
-    best = self.find_best_split(rows, weights, attributes)
-    if best is None:
-        return node
-    feature, threshold = best
-    column = self.train_columns[feature][rows]
-    missing = self.train_missing[feature][rows]
-    if threshold is None:
-        branches = {v: ~missing & (column == v) for v in np.unique(column[~missing])}
-    else:
-        branches = {"left": ~missing & (column <= threshold),
-                    "right": ~missing & (column > threshold)}
-    node.feature, node.threshold = feature, threshold
-    child_attributes = attributes - {feature} if threshold is None else attributes
-    known_weight = weights[~missing].sum()
-    for key, mask in branches.items():
-        p = weights[mask].sum() / known_weight
-        node.probabilities[key] = p
-        child_rows = np.concatenate([rows[mask], rows[missing]])
-        child_weights = np.concatenate([weights[mask], weights[missing] * p])
-        node.children[key] = self.build_tree(child_rows, child_weights, child_attributes)
-    return node
-\end{lstlisting}
-
-Fungsi ini membangun pohon secara rekursif. Rekursi berhenti dan menghasilkan
-daun jika simpul hanya berisi satu kelas, atribut sudah habis, atau tidak ada
-pemisahan yang berguna. Jika tidak, data dibagi menurut atribut terbaik, yaitu
-satu cabang per nilai untuk atribut kategorikal dan dua cabang \texttt{left}
-dan \texttt{right} untuk atribut numerik. Atribut kategorikal tidak dipakai lagi
-di bawah simpul tersebut, sedangkan atribut numerik boleh dipakai ulang.
-Baris yang nilainya kosong pada atribut ini diteruskan ke semua cabang dengan
-bobot dikali $p_i$, yaitu proporsi bobot data berisi nilai pada cabang
-tersebut.
-
-\begin{lstlisting}
-def find_best_split(self, rows, weights, attributes):
-    best, best_ratio = None, 0.0
-    for feature in sorted(attributes):
-        result = self.evaluate_attribute(rows, weights, feature)
-        if result is not None and result[0] > best_ratio:
-            best_ratio, best = result[0], (feature, result[1])
-    return best
-\end{lstlisting}
-
-Fungsi ini mengevaluasi setiap atribut yang tersisa lalu memilih atribut dengan
-\textit{gain ratio} terbesar beserta ambangnya. Nilai \texttt{None} dikembalikan
-jika tidak ada atribut yang memberi \textit{gain} positif.
-
-\begin{lstlisting}
-def evaluate_attribute(self, rows, weights, feature):
-    known = ~self.train_missing[feature][rows]
-    if not known.any():
-        return None
-    values = self.train_columns[feature][rows][known]
-    y, w = self.train_y[rows][known], weights[known]
-    fraction_known = w.sum() / weights.sum()
-    n_classes = len(self.classes)
-
-    if self.is_categorical[feature]:
-        threshold = None
-        categories, category_index = np.unique(values, return_inverse=True)
-        counts = np.zeros((len(categories), n_classes))
-        np.add.at(counts, (category_index, y), w)
-        if len(categories) < 2:
-            return None
-    else:
-        order = np.argsort(values, kind="mergesort")
-        values, y, w = values[order], y[order], w[order]
-        cumulative = np.cumsum(np.eye(n_classes)[y] * w[:, None], axis=0)
-        cuts = np.nonzero(values[1:] > values[:-1])[0]
-        if len(cuts) == 0:
-            return None
-        left = cumulative[cuts]
-        right = cumulative[-1] - left
-        n_left, n_right = left.sum(axis=1), right.sum(axis=1)
-        gains = entropy(cumulative[-1]) - (n_left * entropy(left) + n_right * entropy(right)) / w.sum()
-        best = int(np.argmax(gains))
-        threshold = (values[cuts[best]] + values[cuts[best] + 1]) / 2
-        counts = np.vstack([left[best], right[best]])
-
-    sizes = counts.sum(axis=1)
-    gain = fraction_known * (entropy(counts.sum(axis=0)) - (sizes / sizes.sum() * entropy(counts)).sum())
-    split_info = entropy(sizes)
-    if gain <= EPS or split_info <= EPS:
-        return None
-    return gain / split_info, threshold
-\end{lstlisting}
-
-Fungsi ini menghitung \textit{gain ratio} satu atribut dan mengembalikan nilai
-tersebut bersama ambangnya. Hanya baris dengan nilai diketahui yang dipakai.
-Pada atribut kategorikal, matriks jumlah bobot kelas per kategori disusun
-dengan \texttt{np.add.at}. Pada atribut numerik, data diurutkan dan jumlah
-kumulatif tiap kelas dipakai untuk mendapatkan \textit{gain} semua kandidat
-ambang sekaligus. Kandidat berada di titik tengah dua nilai berurutan yang
-berbeda dan dipilih yang \textit{gain}-nya terbesar sehingga biaya per atribut
-numerik adalah $O(n\log n)$. \textit{Gain} akhir dikali fraksi data yang
-diketahui lalu dibagi \textit{split information} untuk menghasilkan
-\textit{gain ratio}.
-
-\begin{lstlisting}
-def predict(self, X):
-    rows = X[self.feature_names].to_numpy(dtype=object)
-    return self.classes[[int(np.argmax(self.predict_distribution(self.root, row)))
-                         for row in rows]]
-
-def predict_distribution(self, node, row):
-    if node.is_leaf():
-        return node.distribution
-    key = self.branch_key(node, row)
-    if key is None:
-        return sum(p * self.predict_distribution(node.children[k], row)
-                   for k, p in node.probabilities.items())
-    return self.predict_distribution(node.children[key], row)
-
-def branch_key(self, node, row):
-    value = row[node.feature]
-    if is_missing(value):
-        return None
-    if node.threshold is None:
-        return value if value in node.children else None
-    return "left" if value <= node.threshold else "right"
-\end{lstlisting}
-
-Prediksi menelusuri pohon dari akar sampai daun. Fungsi \texttt{branch\_key}
-menentukan cabang yang diikuti sebuah baris, dan mengembalikan \texttt{None}
-jika nilainya kosong atau kategorinya tidak pernah muncul saat pelatihan. Pada
-kasus tersebut \texttt{predict\_distribution} menelusuri seluruh cabang lalu
-menggabungkan distribusi kelasnya dengan bobot $p_i$. Fungsi \texttt{predict}
-memilih kelas dengan proporsi terbesar. Distribusi pada daun juga dipakai
-sebagai probabilitas untuk ROC-AUC dan bonus \textit{cost-sensitive}.
-
-\begin{lstlisting}
-def prune(self, X_val, y_val):
-    rows = X_val[self.feature_names].to_numpy(dtype=object)
-    y = np.searchsorted(self.classes, np.asarray(y_val))
-    self.count_validation_errors(self.root, rows, y, np.ones(len(y)))
-    while True:
-        candidates = []
-        self.collect_candidates(self.root, candidates)
-        if not candidates:
-            break
-        gain, size, node = max(candidates, key=lambda candidate: candidate[:2])
-        if gain <= 1e-9:
-            break
-        node.feature, node.threshold = None, None
-        node.children, node.probabilities = {}, {}
-    return self
-\end{lstlisting}
-
-Metode \texttt{prune} menjalankan \textit{Reduced Error Pruning} pada data
-\textit{pruning}. Galat tiap simpul jika dijadikan daun dihitung lebih dulu,
-lalu simpul internal yang pemangkasannya paling mengurangi galat dijadikan daun.
-Jika ada beberapa simpul dengan pengurangan sama, subpohon terbesar dipilih.
-Proses diulang sampai tidak ada pemangkasan yang menurunkan galat.
-
-\begin{lstlisting}
-def count_validation_errors(self, node, rows, y, weights):
-    node.validation_errors = float(np.sum(weights * (y != node.prediction)))
-    if node.is_leaf():
-        return
-    keys = np.array([self.branch_key(node, row) for row in rows], dtype=object)
-    unknown = np.array([key is None for key in keys], dtype=bool)
-    for key, child in node.children.items():
-        mask = keys == key
-        self.count_validation_errors(child,
-            np.concatenate([rows[mask], rows[unknown]]),
-            np.concatenate([y[mask], y[unknown]]),
-            np.concatenate([weights[mask], weights[unknown] * node.probabilities[key]]))
-
-def collect_candidates(self, node, candidates):
-    if node.is_leaf():
-        return node.validation_errors, 1
-    subtree_errors, size = 0, 1
-    for child in node.children.values():
-        child_errors, child_size = self.collect_candidates(child, candidates)
-        subtree_errors += child_errors
-        size += child_size
-    candidates.append((subtree_errors - node.validation_errors, size, node))
-    return subtree_errors, size
-\end{lstlisting}
-
-Fungsi \texttt{count\_validation\_errors} mengalirkan data \textit{pruning} ke
-bawah pohon dan mencatat pada tiap simpul bobot data yang salah diprediksi jika
-simpul itu dijadikan daun. Data dengan nilai kosong ikut ke semua cabang dengan
-bobot $p_i$, sama seperti saat pelatihan. Fungsi \texttt{collect\_candidates}
-menjumlahkan galat daun pada tiap subpohon, lalu mencatat selisih galat subpohon
-dan galat simpul sebagai keuntungan pemangkasan beserta ukuran subpohonnya.
-
-\subsubsection{Implementasi Logistic Regression}
-
-Kelas \texttt{LogisticRegressionClassifier}
-(\texttt{src/models/logreg/logreg.py}) mengimplementasikan \textit{logistic
-regression} untuk klasifikasi biner. Pelatihan memakai \textit{gradient
-ascent} untuk memaksimalkan rata-rata \textit{log-likelihood} dikurangi penalti,
-setara dengan meminimalkan \textit{log-loss}. Parameter utamanya adalah
-\texttt{penalty} (\texttt{None}, \texttt{l1}, \texttt{l2}, atau
-\texttt{elastic\allowbreak net}), \texttt{reg\_strength} ($\lambda$),
-\texttt{l1\_ratio} ($\rho$), \texttt{learning\_rate}, \texttt{max\_iter}, dan
-\texttt{batch\_size}. Kelas ini juga menyediakan \texttt{get\_params} dan
-\texttt{set\_params} agar kompatibel dengan antarmuka \texttt{scikit-learn}.
-
-\begin{lstlisting}
-class LogisticRegressionClassifier:
-    def __init__(self, learning_rate=0.1, max_iter=2000, penalty=None,
-                 reg_strength=0.01, l1_ratio=0.5, tol=1e-7, patience=10,
-                 batch_size=None, random_state=42, record_history=False):
-        self.learning_rate, self.max_iter = learning_rate, max_iter
-        self.penalty, self.reg_strength, self.l1_ratio = penalty, reg_strength, l1_ratio
-        self.tol, self.patience = tol, patience
-        self.batch_size, self.random_state = batch_size, random_state
-        self.record_history = record_history
-\end{lstlisting}
-
-Konstruktor menyimpan hiperparameter. Nilai \texttt{batch\_size=None} berarti
-seluruh data dipakai pada tiap pembaruan, nilai $1$ menghasilkan
-\textit{stochastic gradient ascent}, dan nilai lain menghasilkan
-\textit{mini-batch}. Parameter \texttt{tol} dan \texttt{patience} mengatur
-penghentian dini, sedangkan \texttt{record\_history} menyimpan lintasan
-parameter untuk visualisasi.
-
-\begin{lstlisting}
-@staticmethod
-def _sigmoid(z):
-    e = np.exp(-np.abs(z))
-    return np.where(z >= 0, 1 / (1 + e), e / (1 + e))
-\end{lstlisting}
-
-Fungsi ini menghitung sigmoid $\sigma(z)=1/(1+e^{-z})$ dengan dua cabang
-bergantung pada tanda $z$. Eksponen selalu memakai $-|z|$ sehingga tidak
-terjadi \textit{overflow} walaupun skor sangat besar.
-
-\begin{lstlisting}
-def _regularization(self):
-    if self.penalty is None:
-        return 0.0, 0.0
-    ratio = {"l1": 1.0, "l2": 0.0, "elasticnet": self.l1_ratio}[self.penalty]
-    return self.reg_strength * ratio, self.reg_strength * (1 - ratio)
-\end{lstlisting}
-
-Fungsi ini menerjemahkan jenis penalti menjadi dua koefisien, yaitu koefisien
-L1 dan L2. L1 memakai seluruh $\lambda$ pada suku L1, L2 memakai seluruh
-$\lambda$ pada suku L2, dan \textit{Elastic Net} membagi $\lambda$ menurut
-\texttt{l1\_ratio}.
-
-\begin{lstlisting}
-def _log_likelihood_gradient(self, X, y, w, b):
-    l1, l2 = self._regularization()
-    z = X @ w + b
-    objective = -np.mean(np.logaddexp(0, (1 - 2 * y) * z))
-    objective -= l1 * np.abs(w).sum() + 0.5 * l2 * (w @ w)
-    residual = y - self._sigmoid(z)
-    dw = X.T @ residual / len(y) - l1 * np.sign(w) - l2 * w
-    db = residual.mean()
-    return float(objective), dw, float(db)
-\end{lstlisting}
-
-Fungsi ini menghitung nilai fungsi objektif dan gradiennya. \textit{Log-likelihood}
-dihitung dengan \texttt{np.logaddexp} agar stabil secara numerik. Gradien bobot
-adalah $\frac{1}{n}X^{T}(y-p)$ dikurangi gradien penalti, dengan L1 memakai
-subgradien $\mathrm{sign}(w)$. Bias tidak dikenai penalti.
-
-\begin{lstlisting}
-def _fit_gradient_ascent(self, X, y, rng):
-    w, b = np.zeros(X.shape[1]), 0.0
-    self.loss_history_ = [-self._log_likelihood_gradient(X, y, w, b)[0]]
-    stable_epochs = 0
-    size = len(X) if self.batch_size is None else min(self.batch_size, len(X))
-    for epoch in range(1, self.max_iter + 1):
-        indices = rng.permutation(len(X)) if size < len(X) else None
-        for start in range(0, len(X), size):
-            batch = slice(None) if indices is None else indices[start:start + size]
-            _, dw, db = self._log_likelihood_gradient(X[batch], y[batch], w, b)
-            w += self.learning_rate * dw
-            b += self.learning_rate * db
-        loss = -self._log_likelihood_gradient(X, y, w, b)[0]
-        previous_loss = self.loss_history_[-1]
-        self.loss_history_.append(loss)
-        if abs(previous_loss - loss) <= self.tol * max(1.0, abs(previous_loss)):
-            stable_epochs += 1
-        else:
-            stable_epochs = 0
-        if stable_epochs >= self.patience:
-            return w, b, epoch, True
-    return w, b, epoch, False
-\end{lstlisting}
-
-Fungsi ini adalah inti pelatihan. Bobot dan bias dimulai dari nol, lalu pada
-tiap \textit{epoch} data diacak dan dibagi menjadi \textit{batch} sesuai
-\texttt{batch\_size}. Parameter digeser searah gradien dengan langkah
-\texttt{learning\_rate}. Setelah satu \textit{epoch}, \textit{loss} pada seluruh
-data dicatat di \texttt{loss\_history\_}. Pelatihan berhenti jika perubahan
-\textit{loss} lebih kecil dari \texttt{tol} selama \texttt{patience}
-\textit{epoch} berturut-turut dan fungsi mengembalikan penanda konvergen. Jika
-\texttt{max\_iter} tercapai lebih dulu, penandanya \texttt{False}. Kompleksitas
-tiap \textit{epoch} pada \textit{full-batch} adalah $O(nd)$.
-
-\begin{lstlisting}
-def fit(self, X, y):
-    X = self._features(X)
-    y = np.asarray(y)
-    classes, encoded = np.unique(y, return_inverse=True)
-    rng = np.random.default_rng(self.random_state)
-    w, b, iterations, converged = self._fit_gradient_ascent(X, encoded.astype(float), rng)
-    self.coef_ = w[None, :]
-    self.intercept_ = np.array([b])
-    self.classes_ = classes
-    self.n_iter_, self.converged_ = iterations, bool(converged)
-    return self
-\end{lstlisting}
-
-Metode \texttt{fit} memvalidasi masukan, mengubah dua label kelas menjadi
-$0$ dan $1$, menjalankan \textit{gradient ascent}, lalu menyimpan hasilnya pada
-\texttt{coef\_}, \texttt{intercept\_}, dan \texttt{classes\_}. Peringatan
-dikeluarkan jika pelatihan berhenti sebelum konvergen, dan kelas selain dua
-ditolak karena implementasi ini khusus biner.
-
-\begin{lstlisting}
-def decision_function(self, X):
-    X = self._features(X)
-    return X @ self.coef_[0] + self.intercept_[0]
-
-def predict_proba(self, X):
-    positive = self._sigmoid(self.decision_function(X))
-    return np.column_stack((1 - positive, positive))
-
-def predict(self, X, threshold=0.5):
-    probabilities = self.predict_proba(X)
-    return self.classes_[(probabilities[:, 1] >= threshold).astype(int)]
-\end{lstlisting}
-
-Fungsi \texttt{decision\_function} menghitung skor linear $w^{T}x+b$, lalu
-\texttt{predict\_proba} mengubahnya menjadi probabilitas kedua kelas dengan
-sigmoid. Fungsi \texttt{predict} membandingkan probabilitas kelas positif dengan
-\texttt{threshold}. Nilai bawaannya $0{,}5$ dan dapat diubah, misalnya menjadi
-$2/3$ pada bonus \textit{cost-sensitive}.
-
-\subsubsection{Implementasi Support Vector Machine}
-
-Kelas \texttt{SVM} pada \texttt{src/models/svm/svm.py} menerima dua kelas
-dan fitur numerik yang terhingga. Imputasi, \textit{one-hot encoding}, dan
-standardisasi dilakukan di luar kelas. Parameter \texttt{kernel} memilih
-kernel linear, polinomial, atau Gaussian (RBF). Parameter \texttt{solver}
-menentukan cara mencari koefisien, yaitu QP atau SMO.
-
-\Needspace{10\baselineskip}
-\begin{lstlisting}[caption={Persiapan data pada metode fit}, label={lst:svm-fit}]
-classes = np.unique(y)
-# ...
-signs = np.where(y == classes[1], 1.0, -1.0)
-# ...
-self._X_train, self._y_train, self.classes_ = X.copy(), signs, classes
-self.n_features_in_ = X.shape[1]
-self._gamma = gamma
-self._alphas = np.zeros(len(X))
-\end{lstlisting}
-
-\texttt{np.unique} mengurutkan label dan \texttt{np.where} memberi tanda
-$-1$ pada kelas pertama serta $+1$ pada kelas kedua. Metode \texttt{fit}
-menghitung matriks $K$ dari seluruh pasangan data latih sebelum menjalankan
-\texttt{\_fit\_qp} atau \texttt{\_fit\_smo}. Karena keduanya menyimpan
-matriks berukuran $n\times n$, kebutuhan memorinya tumbuh sebagai $O(n^2)$.
+Parameter \texttt{cache\_size\_mb} menetapkan anggaran dalam MiB, misalnya
+\texttt{cache\_size\_mb=512}. Untuk anggaran $M$ MiB, tersedia $B=\lfloor M\cdot 2^{20}\rfloor$
+byte untuk nilai kernel. SMO memakai matriks penuh jika $8n^2\le B$;
+jika tidak, cache menyimpan paling banyak $\lfloor B/(8n)\rfloor$ baris.
+Nilai bawaan \texttt{None} selalu memilih matriks penuh. Jika satu baris saja tidak
+muat, tidak ada baris yang dipertahankan. Pada 16.000 baris, matriks penuh
+memerlukan sekitar 1,91 GiB, sedangkan anggaran 512 MiB menampung paling banyak
+4.194 baris. Angka ini hanya mencakup larik baris kernel, bukan seluruh RAM:
+metadata objek cache dan alokasi temporer memerlukan memori tambahan. Miss
+cache juga memerlukan perhitungan ulang kernel. Pada RBF, nilai
+$\lVert\mathbf{x}_j\rVert^2$ dihitung sekali untuk setiap sampel; baris baru
+memakai kembali nilai tersebut melalui identitas
+$\lVert\mathbf{x}_i-\mathbf{x}_j\rVert^2 =
+\lVert\mathbf{x}_i\rVert^2+\lVert\mathbf{x}_j\rVert^2-2\mathbf{x}_i^\top\mathbf{x}_j$.
+Jalur QP tetap memakai matriks penuh dan mengabaikan anggaran cache saat
+pelatihan.
 
 Pada kernel polinomial dan RBF, nilai \texttt{gamma} dapat diberikan langsung
 atau dihitung dari data latih. Opsi \texttt{auto} memakai $1/p$ untuk $p$
@@ -940,15 +449,13 @@ diimputasi terlebih dahulu pada model pembanding.
 Setiap kelas model menyediakan metode \texttt{save(path)} dan
 \texttt{load(path)} berbasis \texttt{pickle}. Parameter \textit{preprocessing}
 ikut disimpan agar data mentah diproses secara konsisten saat prediksi.
-Untuk SVM, model terpilih disimpan di \texttt{svm.pkl} dan prapemrosesnya
-di \texttt{svm\_preprocessor.pkl}. Keduanya dimuat ulang untuk membuat
-\texttt{submission\_svm.csv}. \textit{Logistic Regression} menyimpan model
-terpilih dan prapemrosesnya dalam satu berkas, \texttt{logreg\_bundle.pkl}.
-KNN menyimpan prapemroses terpisah. C4.5 dan \textit{Naive Bayes} menyimpan
-kamus parameter kategorisasi. Keberhasilan penyimpanan diperiksa
-dengan memuat ulang model lalu memastikan probabilitas atau prediksi pada
-beberapa contoh sama dengan model asal. Berkas \texttt{pickle} hanya boleh
-dimuat dari sumber tepercaya karena pemuatan dapat menjalankan kode.
+Notebook mengekspor lima berkas model: \texttt{dtl.pkl}, \texttt{knn.pkl},
+\texttt{logreg.pkl}, \texttt{svm.pkl}, dan \texttt{bayes.pkl}. Setiap berkas
+menyimpan model terlatih beserta konfigurasi atau referensi prapemrosesan
+yang diperlukan untuk prediksi. Sel ekspor menyimpan prediksi dari model
+yang sama dalam \texttt{submission\_<nama>.csv}, sesuai urutan ID pada
+templat submisi. Berkas \texttt{pickle} hanya boleh dimuat dari sumber
+tepercaya karena pemuatan dapat menjalankan kode.
 
 
 \subsection{Implementasi Bonus}
@@ -1223,7 +730,7 @@ pertama lalu mendatar karena gradiennya mengecil di dekat minimum.
 
 \begin{figure}[H]
 \centering
-\includegraphics[width=\textwidth]{../output/logreg_training_frame.png}
+\includegraphics[width=\textwidth]{figures/logreg_training_frame.png}
 \caption{Kontur \textit{log-loss} dan lintasan parameter pada \textit{frame} akhir video}
 \label{fig:logvideo}
 \end{figure}
@@ -1248,8 +755,8 @@ tingkat skor dan tidak menyatakan jarak dari batas keputusan.
 
 \begin{figure}[H]
 \centering
-\includegraphics[width=\textwidth]{../output/svm_boundaries_qp.png}\\
-\includegraphics[width=\textwidth]{../output/svm_boundaries_smo.png}
+\includegraphics[width=\textwidth]{figures/svm_boundaries_qp.png}\\
+\includegraphics[width=\textwidth]{figures/svm_boundaries_smo.png}
 \caption{Batas keputusan SVM pada dua komponen utama dari 1.000 baris latih.
 QP ditampilkan di baris atas dan SMO di baris bawah. Ketiga kolom
 menunjukkan kernel linear, polinomial, dan RBF pada skala sumbu yang sama.
@@ -1391,4 +898,3 @@ Implementasi mengikuti makalah dengan beberapa penyesuaian.
 
 \paragraph{Kompleksitas}
 Dengan $n$ baris, $d$ fitur, dan $k$ kelas, pembelajaran struktur membutuhkan $O(d^2n)$ untuk menghitung informasi bersama bersyarat seluruh pasangan fitur dan $O(d^2\log d)$ untuk mengurutkan sisi. Pengisian tabel hitungan membutuhkan $O(nd)$ dan memorinya $O\left(k\sum_j|V_j||V_{\pi(j)}|\right)$. Prediksi $m$ baris membutuhkan $O(mdk)$. Pada data ini, pelatihan pada seluruh 27.373 baris dengan 5 \textit{bin} memakan waktu sekitar 7 detik.
-

@@ -5,12 +5,20 @@ import numpy as np
 
 # struktur bintang: kelas -> tiap fitur
 class NaiveBayesClassifier:
-    def __init__(self, alpha=1.0):
+    def __init__(self, alpha=1.0, var_smoothing=1e-9, feature_types=None):
         # alpha: hitungan palsu yang ditambahkan ke tiap nilai fitur dan ke tiap kelas (smoothing)
         if alpha < 0:
             raise ValueError("alpha must be non-negative")
+        if var_smoothing < 0:
+            raise ValueError("var_smoothing must be non-negative")
+        if feature_types is not None and any(
+            kind not in ("categorical", "gaussian") for kind in feature_types
+        ):
+            raise ValueError("feature_types must be 'categorical' or 'gaussian'")
 
         self.alpha = alpha
+        self.var_smoothing = var_smoothing
+        self.feature_types = feature_types
         self.classes_ = np.array([])
         self.class_log_prior_ = []
         self.feature_params_ = []
@@ -44,19 +52,34 @@ class NaiveBayesClassifier:
             raise ValueError("X and y must have the same number of samples")
 
         n_samples, n_features = X.shape
+        feature_types = self.feature_types
+        if feature_types is None:
+            feature_types = ["categorical"] * n_features
+        if len(feature_types) != n_features:
+            raise ValueError("feature_types must have one entry per column of X")
+
         self.classes_ = np.unique(y)
         n_classes = len(self.classes_)
 
-        # P(kelas) = (hitungan kelas + alpha) / (jumlah baris + alpha * jumlah kelas)
+        # Keep upstream categorical baseline priors; explicit types use the legacy mixed-model prior.
         self.class_log_prior_ = []
         for c in self.classes_:
             n_in_class = np.sum(y == c)
-            self.class_log_prior_.append(math.log((n_in_class + self.alpha) / (n_samples + self.alpha * n_classes)))
+            if self.feature_types is None:
+                prior = (n_in_class + self.alpha) / (n_samples + self.alpha * n_classes)
+            else:
+                prior = n_in_class / n_samples
+            self.class_log_prior_.append(math.log(prior))
 
-        # semua fitur diperlakukan sebagai kategorikal
         self.feature_params_ = []
         for j in range(n_features):
-            self.feature_params_.append(self._fit_categorical(X[:, j], y))
+            if feature_types[j] == "categorical":
+                params = self._fit_categorical(X[:, j], y)
+                if self.feature_types is not None:
+                    params["kind"] = "categorical"
+            else:
+                params = self._fit_gaussian(X[:, j], y)
+            self.feature_params_.append(params)
         return self
 
     def _fit_categorical(self, column, y):
@@ -88,8 +111,31 @@ class NaiveBayesClassifier:
 
         return {"log_prob": log_prob, "log_unseen": log_unseen}
 
+    def _fit_gaussian(self, column, y):
+        # per kelas: rata-rata dan varians
+        not_missing = ~np.isnan(column)
+        extra = self.var_smoothing * np.var(column[not_missing]) if not_missing.any() else 0.0
+
+        means = []
+        variances = []
+        for c in self.classes_:
+            in_class = column[(y == c) & not_missing]
+            if len(in_class) == 0:
+                means.append(None)
+                variances.append(None)
+            else:
+                means.append(float(np.mean(in_class)))
+                variances.append(max(float(np.var(in_class)) + extra, 1e-12))
+        return {"kind": "gaussian", "means": means, "variances": variances}
+
     def _log_likelihood(self, param, k, value):
         # log P(fitur = value | kelas ke-k)
+        if param.get("kind") == "gaussian":
+            mean = param["means"][k]
+            if mean is None:
+                return 0.0
+            var = param["variances"][k]
+            return -0.5 * math.log(2 * math.pi * var) - (value - mean) ** 2 / (2 * var)
         table = param["log_prob"][k]
         if value in table:
             return table[value]
