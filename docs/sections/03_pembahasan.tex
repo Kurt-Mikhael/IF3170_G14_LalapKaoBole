@@ -36,9 +36,13 @@ data validasi dan data uji tidak bocor ke proses pelatihan.
 Setelah preprocessing, beberapa algoritma buatan sendiri dan implementasi
 scikit-learn dilatih dan dibandingkan. Pembagian data serta validasi
 digunakan untuk memilih konfigurasi dan model berdasarkan metrik evaluasi,
-terutama \textit{Macro F1}. Model terpilih kemudian dilatih kembali
-menggunakan seluruh data latih, diterapkan pada data uji, dan menghasilkan
-prediksi dalam berkas \textit{submission}. Dengan demikian, alur ini menjaga
+terutama \textit{Macro F1}. Model terpilih kemudian dilatih ulang dari
+\texttt{train.csv}, diterapkan pada data uji, dan menghasilkan prediksi dalam
+berkas \textit{submission}. C4.5 memakai seluruh data latih, sedangkan model
+lain memakai sampel terstratifikasi karena biaya komputasinya, yaitu 16.000
+baris untuk SVM dan 8.000 baris untuk KNN, \textit{Logistic Regression}, dan
+\textit{Naive Bayes}. Rinciannya ada pada bagian Pembagian Data dan Validasi.
+Dengan demikian, alur ini menjaga
 pemisahan data sekaligus memastikan proses dari data mentah hingga prediksi
 akhir dapat ditelusuri.
 

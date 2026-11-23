@@ -30,9 +30,21 @@ data validasi untuk memilih konfigurasi tiap model, dan seluruh model memakai
 fold yang sama agar hasilnya sebanding. Evaluasi akhir memakai \textit{5-fold cross-validation} penuh dengan
 seluruh langkah \textit{preprocessing} dan pelatihan diulang pada tiap
 \textit{fold}, dan hasilnya dilaporkan sebagai rata-rata dan simpangan baku.
-C4.5, KNN, dan \textit{Naive Bayes} dilatih ulang pada seluruh \texttt{train.csv}
-untuk \textit{submission}. SVM dan \textit{Logistic Regression} memakai model
-terpilih yang sudah dilatih pada bagian latih dari pembagian pertama.
+
+Model untuk \textit{submission} dilatih ulang dari \texttt{train.csv} dengan
+konfigurasi yang sudah dipilih, tanpa memakai skor \textit{holdout} untuk memilih
+ulang. Jumlah baris yang dipakai berbeda antarmodel. C4.5 memakai seluruh
+\texttt{train.csv}, dengan 80\% data untuk membentuk pohon dan 20\% data untuk
+\textit{Reduced Error Pruning}. Pembagiannya memakai
+\texttt{StratifiedGroupKFold} yang sama sehingga baris identik tidak terpisah.
+Pada pelatihan ulang ini, \textit{oversampling} tidak dipakai. SVM memakai
+sampel terstratifikasi 16.000 baris dari \texttt{train.csv} karena kebutuhan
+memori matriks kernel, dengan kernel RBF, SMO, dan ambang skor keputusan
+$-0{,}1875$. KNN, \textit{Logistic Regression}, dan \textit{Naive Bayes}
+memakai sampel terstratifikasi 8.000 baris dari \texttt{train.csv} beserta
+kelompok fitur yang terpilih pada \textit{cross validation} pengembangan. Semua
+parameter \textit{preprocessing} dipelajari ulang dari baris latih tersebut,
+lalu diterapkan ke \texttt{test.csv}.
 
 \subsubsection{Konfigurasi Parameter}
 
