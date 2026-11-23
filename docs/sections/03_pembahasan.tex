@@ -1150,7 +1150,7 @@ dan $\theta_1$ (bobot). Model ini dilatih tanpa regularisasi dengan
 \texttt{record\_history=True} agar posisi parameter pada tiap \textit{epoch}
 tersimpan di \texttt{parameter\_history\_}. Implementasinya berada pada
 \texttt{src/models/logreg/visualization.py} dan video tersimpan pada
-\texttt{output/logreg\_training.mp4}.
+\texttt{figures/logreg\_training.mp4}.
 
 \begin{lstlisting}
 def _log_loss_at(parameters, x, y, counts):
@@ -1270,7 +1270,7 @@ pertama lalu mendatar karena gradiennya mengecil di dekat minimum.
 
 \begin{figure}[H]
 \centering
-\includegraphics[width=\textwidth]{../output/logreg_training_frame.png}
+\includegraphics[width=\textwidth]{figures/logreg_training_frame.png}
 \caption{Kontur \textit{log-loss} dan lintasan parameter pada \textit{frame} akhir video}
 \label{fig:logvideo}
 \end{figure}
@@ -1295,8 +1295,8 @@ tingkat skor dan tidak menyatakan jarak dari batas keputusan.
 
 \begin{figure}[H]
 \centering
-\includegraphics[width=\textwidth]{../output/svm_boundaries_qp.png}\\
-\includegraphics[width=\textwidth]{../output/svm_boundaries_smo.png}
+\includegraphics[width=\textwidth]{figures/svm_boundaries_qp.png}\\
+\includegraphics[width=\textwidth]{figures/svm_boundaries_smo.png}
 \caption{Batas keputusan SVM pada dua komponen utama dari 1.000 baris latih.
 QP ditampilkan di baris atas dan SMO di baris bawah. Ketiga kolom
 menunjukkan kernel linear, polinomial, dan RBF pada skala sumbu yang sama.
