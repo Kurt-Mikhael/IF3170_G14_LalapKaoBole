@@ -178,7 +178,7 @@ class C45DecisionTree:
         return self.predict_distribution(node.children[key], row)
 
     def branch_key(self, node, row):
-        # menentukan cabang yang diikuti satu baris data; None jika nilainya missing atau kategori tidak dikenal
+        # menentukan cabang yang diikuti satu baris data
         value = row[node.feature]
         if is_missing(value):
             return None
@@ -187,7 +187,7 @@ class C45DecisionTree:
         return "left" if value <= node.threshold else "right"
 
     def prune(self, X_val, y_val):
-        # Reduced Error Pruning: ulangi sampai pemangkasan berikutnya merugikan
+        # Reduced Error Pruning diulangi sampai pemangkasan berikutnya merugikan
         rows = X_val[self.feature_names].to_numpy(dtype=object)
         y = np.searchsorted(self.classes, np.asarray(y_val))
         self.count_validation_errors(self.root, rows, y, np.ones(len(y)))
@@ -197,9 +197,9 @@ class C45DecisionTree:
             self.collect_candidates(self.root, candidates)
             if not candidates:
                 break
-            # pilih node yang paling mengurangi error validation; jika seri, subtree terbesar
+            # pilih node yang paling mengurangi error validation
             gain, size, node = max(candidates, key=lambda candidate: candidate[:2])
-            # hanya pangkas jika akurasi validation naik; error sama berarti berhenti
+            # hanya pangkas jika akurasi validation naik
             if gain <= 1e-9:  # toleransi pembulatan karena error berupa bobot pecahan
                 break
             node.feature, node.threshold = None, None
