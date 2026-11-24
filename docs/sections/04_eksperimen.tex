@@ -640,6 +640,31 @@ sama. \textit{Naive Bayes} campuran justru memiliki ROC-AUC kedua tertinggi
 campuran (0,652). Selain itu, \textit{recall} ketiga model teratas masih 0,71
 sampai 0,80, sehingga 20 sampai 29\% pemesanan yang batal belum terdeteksi.
 
+\paragraph{Skor Kaggle}
+Tabel~\ref{tab:kaggle} memuat skor \textit{leaderboard} publik Kaggle untuk
+berkas \textit{submission} tiap model. Skor publik dihitung dari sekitar 30\%
+data uji dengan metrik F1 macro, sehingga hanya menjadi perkiraan kasar untuk
+seluruh data uji. Urutan model pada Kaggle sama dengan urutan F1 macro
+validasi pada Tabel~\ref{tab:hasil}.
+
+\begin{table}[H]
+\centering
+\small
+\caption{Skor \textit{leaderboard} publik Kaggle (F1 macro)}
+\label{tab:kaggle}
+\begin{tabular}{@{}llr@{}}
+\toprule
+Model & Berkas & Skor \\
+\midrule
+SVM & \texttt{submission\_svm.csv} & 0,85308 \\
+C4.5 & \texttt{submission\_dtl.csv} & 0,84267 \\
+KNN & \texttt{submission\_knn.csv} & 0,82234 \\
+\textit{Logistic Regression} & \texttt{submission\_logreg.csv} & 0,80461 \\
+\textit{Naive Bayes} & \texttt{submission\_bayes.csv} & 0,80313 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
 \subsubsection{Cost-Sensitive Classification}
 
 Tabel~\ref{tab:cost} membandingkan aturan prediksi bawaan setiap model
