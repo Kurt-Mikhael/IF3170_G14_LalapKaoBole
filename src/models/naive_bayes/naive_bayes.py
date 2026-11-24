@@ -61,7 +61,7 @@ class NaiveBayesClassifier:
         self.classes_ = np.unique(y)
         n_classes = len(self.classes_)
 
-        # Keep upstream categorical baseline priors; explicit types use the legacy mixed-model prior.
+        # tanpa feature_types prior di-smoothing, dengan feature_types prior dihitung dari frekuensi asli
         self.class_log_prior_ = []
         for c in self.classes_:
             n_in_class = np.sum(y == c)
@@ -112,7 +112,7 @@ class NaiveBayesClassifier:
         return {"log_prob": log_prob, "log_unseen": log_unseen}
 
     def _fit_gaussian(self, column, y):
-        # per kelas: rata-rata dan varians
+        # per kelas: rata-rata dan varians (asumsi Gaussian, John dan Langley, 1995)
         not_missing = ~np.isnan(column)
         extra = self.var_smoothing * np.var(column[not_missing]) if not_missing.any() else 0.0
 

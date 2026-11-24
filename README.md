@@ -100,10 +100,10 @@ bandingkan ID dan prediksi hasil `Run All` dengan CSV yang benar-benar diunggah.
 
 ## Kontributor
 
-| NIM      | Nama                           |
-| -------- | ------------------------------ |
-| 13524037 | Nicholas Wise Saragih Sumbayak |
-| 13524062 | Nathan E C Marpaung            |
-| 13524065 | Kurt Mikhael Purba             |
-| 13524089 | Aurelia Jennifer Gunawan       |
-| 13524131 | Amanda Aurellia Salsabila      |
+| NIM      | Nama                           | Tugas |
+| -------- | ------------------------------ | ------ |
+| 13524037 | Nicholas Wise Saragih Sumbayak | Implementasi SVM, algoritma bonus, laporan |
+| 13524062 | Nathan E C Marpaung            | Implementasi Logistic Regression, algoritma bonus, laporan |
+| 13524065 | Kurt Mikhael Purba             | Implementasi Decision Tree Learning, algoritma bonus, laporan |
+| 13524089 | Aurelia Jennifer Gunawan       | Implementasi KNN, bonus Cost-Sensitive Classification, laporan |
+| 13524131 | Amanda Aurellia Salsabila      | Implementasi Bayesian Network (Naive Bayes), algoritma bonus (TAN), laporan |

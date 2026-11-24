@@ -10,7 +10,6 @@ import numpy as np
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from models import NaiveBayesClassifier
-from models.booking_feature_search import _estimator
 
 # Dataset Play Tennis klasik.
 # outlook: Sunny=0 Overcast=1 Rain=2 | temp: Hot=0 Mild=1 Cool=2
@@ -39,13 +38,13 @@ HOTEL_X = [
 HOTEL_Y = [1, 1, 1, 0, 0, 1, 0, 0, 0, 0]
 
 class NaiveBayesTests(unittest.TestCase):
-    def test_booking_feature_search_predicts_with_mixed_binary_features(self):
+    def test_mixed_binary_and_gaussian_features_predict(self):
         X = np.array([
             [0, 0.1], [1, 0.2], [0, 0.3], [1, 0.4],
             [0, 9.7], [1, 9.8], [0, 9.9], [1, 10.0],
         ])
         y = np.array([0, 0, 0, 0, 1, 1, 1, 1])
-        model = _estimator("naive_bayes", X, seed=0).fit(X, y)
+        model = NaiveBayesClassifier(alpha=1.0, feature_types=["categorical", "gaussian"]).fit(X, y)
 
         np.testing.assert_array_equal(model.predict([[0, 0.2], [1, 9.8]]), [0, 1])
 
