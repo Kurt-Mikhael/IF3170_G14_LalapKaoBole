@@ -34,9 +34,10 @@ belum menyamai KNN dan C4.5. Pada bonus, penggeseran ambang menjadi 0,667 untuk
 \textit{cost-sensitive classification} menurunkan total biaya pada semua model yang dievaluasi,
 dengan biaya terendah dicapai KNN (5.093). Pada bonus optimasi
 \textit{Logistic Regression}, \textit{conjugate gradient ascent} dan L-BFGS
-dengan L2 konvergen dalam sekitar 100 iterasi, sedangkan \textit{gradient
-ascent} belum konvergen setelah 2.000 iterasi. Metrik validasi ketiganya hampir
-sama, jadi keuntungannya ada pada waktu pelatihan. Visualisasi pohon, video lintasan
+mencapai \textit{loss} latih yang jauh lebih rendah daripada \textit{gradient
+ascent}, yang berhenti terlalu dini karena kriteria perubahan relatif
+\textit{loss}. Tanpa penalti, F1 macro validasi naik dari 0,767 menjadi
+sekitar 0,83, dan L-BFGS membutuhkan iterasi paling sedikit. Visualisasi pohon, video lintasan
 parameter \textit{Logistic Regression}, dan graf \textit{Naive Bayes} juga
 berhasil dibuat untuk membantu menjelaskan perilaku model.
 
@@ -65,6 +66,6 @@ sudah dibuat hanya mendukung tanpa penalti dan L2, sehingga L1 dan
 \textit{Elastic Net} masih memakai \textit{gradient ascent}. Metode untuk
 objektif yang tidak mulus, misalnya \textit{proximal gradient} atau
 \textit{coordinate descent}, dapat dicoba untuk kedua penalti tersebut.
-\textit{Conjugate gradient} tanpa penalti juga belum konvergen, kemungkinan
-karena kolom \textit{one-hot} yang lengkap membuat Hessian singular. Hal ini
-dapat diuji dengan membuang satu kolom per fitur kategorikal.
+Kriteria berhenti \textit{gradient ascent} juga perlu diganti dengan norma
+gradien, karena kriteria perubahan relatif \textit{loss} menghentikan
+pelatihan sebelum mendekati optimum.

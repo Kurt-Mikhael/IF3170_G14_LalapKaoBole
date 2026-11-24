@@ -1292,8 +1292,9 @@ pertama lalu mendatar karena gradiennya mengecil di dekat minimum.
 \label{sec:bonus-logreg-opt}
 
 \textit{Gradient ascent} pada implementasi dasar memakai laju belajar tetap
-sehingga langkahnya mengecil saat gradien mengecil. Pada data latih, varian
-tanpa penalti belum memenuhi kriteria berhenti setelah 2.000 \textit{epoch}.
+sehingga langkahnya mengecil saat gradien mengecil. Kriteria berhentinya,
+yaitu perubahan relatif \textit{loss}, dapat terpenuhi sebelum parameter
+mendekati optimum (Tabel~\ref{tab:logreg-solver}).
 Bonus ini menambahkan dua \textit{solver} yang memakai informasi kelengkungan,
 yaitu \textit{conjugate gradient ascent} (\texttt{conjugate\_gradient}) dan
 L-BFGS (\texttt{lbfgs}). Teorinya dibahas pada

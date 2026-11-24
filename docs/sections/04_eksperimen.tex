@@ -169,65 +169,71 @@ Gambar~\ref{fig:logreg}.
 \paragraph{Perbandingan \textit{solver} (bonus).}
 \textit{Gradient ascent}, \textit{conjugate gradient ascent}, dan L-BFGS
 dibandingkan pada pembagian latih dan validasi yang sama, tanpa penalti dan
-dengan L2 ($\lambda=0{,}001$). Semua \textit{solver} memakai seluruh data,
-mulai dari parameter nol, dengan batas 2.000 iterasi dan $\texttt{tol}=10^{-7}$.
-Waktu diukur satu kali per konfigurasi dengan satu utas BLAS. Kriteria berhenti
-\textit{gradient ascent} berbeda dengan dua \textit{solver} lain, sehingga
-tabel juga mencantumkan norma tak hingga gradien pada akhir pelatihan.
+dengan L2 ($\lambda=0{,}01$). Model \textit{gradient ascent} diambil dari
+perbandingan regularisasi sebelumnya. Ketiga \textit{solver} memakai
+seluruh data, mulai dari parameter nol, dengan batas 1.000 iterasi dan
+$\texttt{tol}=10^{-3}$. Arti \texttt{tol} berbeda antar-\textit{solver}.
+\textit{Gradient ascent} (laju belajar 0,05) berhenti setelah perubahan
+relatif \textit{loss} tidak lebih dari \texttt{tol} selama 10 iterasi
+berturut-turut. \textit{Conjugate gradient} dan L-BFGS berhenti setelah
+$\lVert\mathbf{g}\rVert_\infty\le\texttt{tol}$. \textit{Loss} latih pada
+tabel adalah \textit{negative log-likelihood} rata-rata ditambah penalti.
 
 \begin{table}[H]
 \centering
-\small
-\caption{Perbandingan \textit{solver} \textit{Logistic Regression} pada data validasi}
+\footnotesize
+\caption{Perbandingan \textit{solver} \textit{Logistic Regression} pada data validasi. Semua konfigurasi memenuhi kriteria berhentinya}
 \label{tab:logreg-solver}
 \setlength{\tabcolsep}{4pt}
-\begin{tabular}{@{}llcccrrc@{}}
+\begin{tabular}{@{}llrccccc@{}}
 \toprule
-Penalti & \textit{Solver} & F1 macro & \textit{Log-loss} & $\lVert\mathbf{g}\rVert_\infty$ & Iterasi & Waktu (s) & Konvergen \\
+Penalti & \textit{Solver} & Iterasi & \textit{Loss} latih & \textit{Log-loss} val. & F1 macro & \textit{Accuracy} & ROC-AUC \\
 \midrule
-Tanpa & \textit{Gradient ascent} & 0,7560 & 0,44138 & $8{,}2\times10^{-4}$ & 2.000 & 7,45 & Tidak \\
- & \textit{Conjugate gradient} & 0,7565 & 0,44079 & $1{,}3\times10^{-6}$ & 2.000 & 5,61 & Tidak \\
- & L-BFGS & 0,7565 & 0,44079 & $9{,}5\times10^{-8}$ & 450 & 0,93 & Ya \\
+Tanpa & \textit{Gradient ascent} & 54 & 0,4873 & 0,4467 & 0,7667 & 0,8166 & 0,8745 \\
+ & \textit{Conjugate gradient} & 306 & 0,3613 & 0,3373 & 0,8303 & 0,8564 & 0,9166 \\
+ & L-BFGS & 250 & 0,3603 & 0,3373 & 0,8279 & 0,8544 & 0,9165 \\
 \midrule
-L2 & \textit{Gradient ascent} & 0,7546 & 0,44145 & $7{,}8\times10^{-4}$ & 2.000 & 6,71 & Tidak \\
- & \textit{Conjugate gradient} & 0,7557 & 0,44081 & $6{,}7\times10^{-8}$ & 106 & 0,30 & Ya \\
- & L-BFGS & 0,7557 & 0,44081 & $8{,}8\times10^{-8}$ & 102 & 0,21 & Ya \\
+L2 & \textit{Gradient ascent} & 53 & 0,4902 & 0,4482 & 0,7671 & 0,8172 & 0,8745 \\
+ & \textit{Conjugate gradient} & 173 & 0,4029 & 0,3561 & 0,8156 & 0,8466 & 0,9117 \\
+ & L-BFGS & 119 & 0,4029 & 0,3561 & 0,8161 & 0,8469 & 0,9116 \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-Pada L2, \textit{conjugate gradient} dan L-BFGS konvergen dalam sekitar 100
-iterasi dan selesai dalam 0,2 sampai 0,3 detik, sekitar 22 sampai 32 kali lebih
-cepat daripada \textit{gradient ascent} yang masih belum konvergen setelah
-2.000 iterasi. Kurva pada Gambar~\ref{fig:logreg-solver} menunjukkan hal yang
-sama: \textit{loss} kedua \textit{solver} turun hampir tegak pada beberapa
-iterasi awal, sedangkan \textit{gradient ascent} masih turun perlahan sampai
-akhir. Objektif akhir \textit{gradient ascent} juga sedikit lebih buruk
-(0,43699 dibanding 0,43644 pada data latih).
+Semua \textit{solver} memenuhi kriteria berhentinya masing-masing, tetapi
+hasilnya tidak setara. \textit{Gradient ascent} berhenti pada iterasi 53--54
+dengan \textit{loss} latih sekitar 0,49, sedangkan \textit{conjugate
+gradient} dan L-BFGS mencapai 0,361 tanpa penalti dan 0,403 dengan L2.
+Kurva pada Gambar~\ref{fig:logreg-solver} memperlihatkan penyebabnya.
+\textit{Loss} \textit{gradient ascent} masih turun saat pelatihan berhenti,
+tetapi penurunan per iterasinya sudah di bawah 0,1\% sehingga kriteria
+perubahan relatif terpenuhi. Kriteria ini hanya menandakan langkah yang
+mengecil, bukan titik optimum. Sebaliknya, \textit{loss} kedua \textit{solver}
+lain turun tajam pada sekitar 20 iterasi pertama, lalu melandai menuju nilai
+akhir yang sama. L-BFGS membutuhkan lebih sedikit iterasi daripada
+\textit{conjugate gradient}, yaitu 250 dibanding 306 tanpa penalti dan 119
+dibanding 173 dengan L2.
 
-Tanpa penalti, hanya L-BFGS yang konvergen. \textit{Conjugate gradient}
-sudah mencapai objektif yang sama dengan L-BFGS hingga lima desimal, tetapi
-norma gradiennya bertahan di sekitar $10^{-6}$ sampai batas iterasi. Dugaan
-kami, penyebabnya adalah kolom \textit{one-hot} yang lengkap. Jumlah kolom
-dari satu fitur kategorikal selalu bernilai satu, sama dengan kolom bias,
-sehingga ada arah parameter yang tidak mengubah prediksi dan Hessian-nya
-singular. Langkah Newton sepanjang arah seperti itu tidak terdefinisi dengan
-baik. Penalti L2 membuat Hessian definit pada arah tersebut, dan itu sejalan
-dengan hasil L2 yang konvergen cepat. Dugaan ini belum diuji secara terpisah.
-
-Perbedaan metrik validasi antar-\textit{solver} sangat kecil, paling besar
-0,0011 pada F1 macro. Artinya, ketiga \textit{solver} menuju model yang
-hampir sama dan keuntungan utamanya ada pada waktu pelatihan dan kepastian
-konvergensi, bukan pada akurasi. Hasil ini sejalan dengan temuan Minka bahwa
+Selisih \textit{loss} ini terbawa ke data validasi. Tanpa penalti,
+\textit{log-loss} validasi turun dari 0,447 menjadi 0,337 dan F1 macro naik
+dari 0,767 menjadi 0,828--0,830. Dengan L2, F1 macro naik dari 0,767 menjadi
+0,816. \textit{Conjugate gradient} dan L-BFGS menuju model yang hampir sama:
+selisih \textit{log-loss} validasinya di bawah $10^{-4}$ dan selisih F1 macro
+paling besar 0,0024. Pada kedua \textit{solver} ini, model tanpa penalti lebih
+baik daripada L2 pada data validasi. Artinya, $\lambda=0{,}01$ sudah cukup
+besar untuk membatasi model. Perbedaan antarvarian penalti pada perbandingan
+regularisasi dengan \textit{gradient ascent} lebih banyak dipengaruhi titik
+berhentinya daripada penaltinya. Hasil ini sejalan dengan temuan Minka bahwa
 \textit{conjugate gradient} dan \textit{quasi-Newton} termasuk metode tercepat
 untuk \textit{logistic regression} \cite{ref:minka-2003}. Kekurangannya, kedua
 \textit{solver} hanya mendukung tanpa penalti dan L2, jadi L1 dan
-\textit{Elastic Net} tetap memakai \textit{gradient ascent}.
+\textit{Elastic Net} tetap memakai \textit{gradient ascent}. Angka di atas
+berasal dari satu kali \textit{run} pada satu pembagian validasi.
 
 \begin{figure}[H]
 \centering
 \includegraphics[width=\textwidth]{figures/logreg_optimizer_loss.png}
-\caption{Kurva \textit{loss} pelatihan tiga \textit{solver}, tanpa penalti (kiri) dan dengan L2 (kanan). Kurva \textit{conjugate gradient} pada panel kanan tertutup kurva L-BFGS}
+\caption{Kurva \textit{loss} pelatihan tiga \textit{solver}, tanpa penalti (kiri) dan dengan L2 (kanan)}
 \label{fig:logreg-solver}
 \end{figure}
 
