@@ -28,15 +28,16 @@ identitas yang tidak informatif tidak digunakan sebagai fitur, sedangkan nilai
 hilang ditangani dengan imputasi atau mekanisme khusus algoritma. Fitur
 kategorikal diubah sesuai kebutuhan model, sementara fitur numerik
 distandardisasi, diubah ke skala lain, atau dikelompokkan menjadi kategori.
-Pada C4.5, sejumlah fitur turunan ditambahkan dan kelas pembatalan
-ditangani dengan \textit{random oversampling} pada data pembentuk pohon. Seluruh
-parameter transformasi dipelajari hanya dari data latih agar informasi dari
-data validasi dan data uji tidak bocor ke proses pelatihan.
+Setiap model juga mendapat blok fitur tambahan yang sesuai, misalnya fitur
+kalender, perilaku pemesanan, \textit{target encoding}, dan ringkasan
+tetangga terdekat. Seluruh parameter transformasi dipelajari hanya dari data
+latih agar informasi dari data validasi dan data uji tidak bocor ke proses
+pelatihan.
 
 Setelah preprocessing, beberapa algoritma buatan sendiri dan implementasi
-scikit-learn dilatih dan dibandingkan. Pembagian data serta validasi
-digunakan untuk memilih konfigurasi dan model berdasarkan metrik evaluasi,
-terutama \textit{Macro F1}. Model terpilih kemudian dilatih ulang dari
+scikit-learn dilatih dan dibandingkan pada satu pembagian validasi
+berdasarkan metrik evaluasi, terutama \textit{Macro F1}. Konfigurasi tiap
+model ditetapkan dari eksperimen saat pengembangan. Model tersebut kemudian dilatih ulang dari
 \texttt{train.csv}, diterapkan pada data uji, dan menghasilkan prediksi dalam
 berkas \textit{submission}. C4.5 memakai seluruh data latih, sedangkan model
 lain memakai sampel terstratifikasi karena biaya komputasinya, yaitu 16.000
@@ -52,15 +53,17 @@ akhir dapat ditelusuri.
 paling banyak terdapat pada \texttt{num\_children} (sekitar 11\%), dan sekitar 39\% baris
 memiliki setidaknya satu nilai kosong. Menghapus baris akan membuang terlalu
 banyak data sehingga nilai kosong dipertahankan dan ditangani sesuai kebutuhan
-tiap algoritma. KNN, SVM, dan \textit{Logistic Regression} memerlukan masukan
-penuh sehingga nilai kosong diimputasi dengan median untuk fitur numerik dan
-modus untuk fitur kategorikal \cite{ref:materi-09}. Median dipilih karena tidak
-terpengaruh nilai ekstrem pada fitur yang miring. C4.5 tidak diimputasi karena
-dapat menanganinya langsung dengan meneruskan data ke semua cabang dengan bobot
-pecahan. \textit{Naive Bayes} tidak diimputasi dengan median atau modus,
-melainkan menjadikan nilai kosong sebagai kategori tersendiri (kode $-1$)
-\cite{ref:materi-09}. Cara ini lebih baik daripada melewatkan fitur yang kosong
-atau membuang baris, seperti yang dibandingkan pada Bab Eksperimen.
+tiap algoritma. KNN, SVM, \textit{Logistic Regression}, dan \textit{Naive
+Bayes} campuran memerlukan masukan penuh sehingga nilai kosong diimputasi
+dengan median untuk fitur numerik dan modus untuk fitur kategorikal
+\cite{ref:materi-09}. Median dipilih karena tidak terpengaruh nilai ekstrem
+pada fitur yang miring. Agar informasi kekosongan tidak hilang,
+\textit{Logistic Regression} juga mendapat blok penanda nilai kosong untuk
+delapan kolom. C4.5 tidak diimputasi karena dapat menanganinya langsung
+dengan meneruskan data ke semua cabang dengan bobot pecahan, dan
+\texttt{special\_requests} yang kosong diberi penanda tersendiri. Pada
+representasi kategorikal \textit{Naive Bayes} dan TAN, nilai kosong dijadikan
+kategori tersendiri \cite{ref:materi-09}.
 
 \paragraph{Data duplikat.} Baris yang identik tidak ditemukan.
 Namun, jika kolom \texttt{id} diabaikan, terdapat 64 baris yang isinya sama
@@ -82,43 +85,82 @@ muncul pada tiga baris), dan kategori yang muncul kurang dari 10 kali
 
 \paragraph{\textit{Encoding}.} Dataset memiliki tiga fitur kategorikal nominal,
 yaitu \texttt{meal\_package}, \texttt{room\_category}, dan
-\texttt{booking\_channel}. KNN, SVM, dan \textit{Logistic Regression} memakai
-\textit{one-hot encoding} dengan \texttt{handle\_\allowbreak unknown='ignore'}.
-C4.5 memperlakukannya secara kategorikal dengan satu cabang untuk setiap nilai.
-\textit{Naive Bayes} memetakan tiap kategori ke kode bilangan bulat yang tetap
-dianggap kategorikal, dan kategori yang tidak pernah muncul di data latih
-menjadi nilai kosong lalu dilewati.
+\texttt{booking\_channel}. KNN, SVM, \textit{Logistic Regression}, dan
+\textit{Naive Bayes} campuran memakai \textit{one-hot encoding}. C4.5 memperlakukannya secara kategorikal dengan
+satu cabang untuk setiap nilai, setelah kategori yang muncul kurang dari 10
+kali digabung. Pada representasi kategorikal \textit{Naive Bayes}, tiap
+kategori dipetakan ke kode bilangan bulat yang tetap dianggap kategorikal,
+dan kategori yang tidak pernah muncul di data latih dipetakan ke modus data
+latih.
 
 \paragraph{Normalisasi dan Standardisasi.} Skala fitur sangat berbeda, misalnya
 \texttt{nightly\_\allowbreak rate\_idr} bernilai jutaan sedangkan fitur lain di
-bawah 20. SVM dan \textit{Logistic Regression} memakai standardisasi Z-score.
-KNN membandingkan tiga skema, yaitu standardisasi, \textit{min-max}, dan
-\textit{log1p} pada fitur yang miring sebelum standardisasi, dan standardisasi
-dipilih. C4.5 tidak memerlukan penskalaan. \textit{Naive Bayes} mengubah fitur
-kontinu menjadi kategori dengan \textit{binning} kuantil sebanyak 5
-\textit{bin} \cite{ref:materi-09, ref:dougherty-1995}.
+bawah 20. Fitur numerik asli pada blok dasar (KNN, \textit{Logistic
+Regression}, dan \textit{Naive Bayes} campuran) serta pada SVM distandardisasi
+dengan Z-score. Fitur turunan pada blok tambahan diskalakan secara
+\textit{robust}, yaitu dikurangi median lalu dibagi jangkauan antarkuartil,
+kemudian dibatasi pada $[-8,8]$ agar nilai ekstrem tidak mendominasi jarak.
+C4.5 tidak memerlukan penskalaan. Representasi kategorikal \textit{Naive
+Bayes} mengubah fitur kontinu menjadi kategori dengan \textit{binning}
+kuantil sebanyak 5 \textit{bin} \cite{ref:materi-09, ref:dougherty-1995}.
 
-\paragraph{\textit{Feature Engineering}.} Pada C4.5, ditambahkan penanda
+\paragraph{\textit{Feature Engineering}.}\label{sec:fitur-tambahan} Fitur
+tambahan dibentuk sebagai blok yang dapat dipilih per model. Semua blok
+dihitung dari data latih saja, lalu diterapkan ke data validasi atau uji.
+
+\begin{itemize}
+    \item \textbf{Dasar.} Fitur numerik asli yang diimputasi dan distandardisasi,
+        ditambah \textit{one-hot} ketiga fitur kategorikal.
+    \item \textbf{Kalender.} Representasi siklus (sinus dan kosinus) untuk hari
+        dalam seminggu, hari dalam setahun, bulan, dan minggu, serta kuartal,
+        penanda akhir pekan, dan penanda bulan ramai atau sepi.
+    \item \textbf{Rombongan, tarif, dan riwayat.} Total tamu dan malam, rasio
+        dewasa terhadap anak, logaritma tarif, tarif per malam dan per tamu,
+        serta jumlah dan proporsi pembatalan sebelumnya.
+    \item \textbf{Perilaku.} Logaritma \textit{lead time}, penanda pemesanan
+        mendadak ($\le7$ hari) dan jauh hari ($>180$ hari), serta penanda dan
+        logaritma jumlah permintaan khusus.
+    \item \textbf{Penanda nilai kosong.} Satu kolom biner untuk tiap kolom yang
+        dapat kosong.
+    \item \textbf{\textit{Target encoding}.} Proporsi pembatalan per kategori
+        dan per kombinasi dua kategori, diperhalus ke arah proporsi global.
+    \item \textbf{Tetangga.} Proporsi pembatalan di antara 5, 15, dan 50
+        tetangga terdekat, versi berbobot jarak, jarak ke tetangga terdekat dari
+        tiap kelas, dan rata-rata jarak ke 15 tetangga.
+\end{itemize}
+
+Blok \textit{target encoding} dan tetangga memakai label. Untuk baris latih,
+keduanya dihitung secara \textit{out-of-fold}: data latih dibagi lima
+dengan pengelompokan baris identik, lalu nilai tiap baris dihitung dari empat
+bagian lainnya. Data validasi dan uji memakai seluruh data latih sebagai
+referensi. Dengan cara ini, label sebuah baris tidak ikut membentuk fiturnya
+sendiri. C4.5 juga mendapat fitur turunan sendiri, yaitu penanda
 \texttt{special\_requests} kosong, total malam, total tamu, indeks bulan
-kedatangan, hari dalam seminggu, dan tarif per orang.
+kedatangan, hari dalam seminggu, dan tarif per orang. Pada SVM, tiga fitur
+diberi bobot lebih besar sebelum digabung (\texttt{days\_before\_arrival} dan
+\texttt{nightly\_rate\_idr} dua kali, \texttt{special\_requests} 1,5 kali),
+jarak pada blok tetangga ditransformasi dengan logaritma bertanda, dan
+seluruh kolom tambahan dikalikan 0,75.
 
 \paragraph{\textit{Class Imbalance}.} Sekitar 33\% pemesanan dibatalkan. Karena
 metrik utama adalah \textit{Macro F1} yang memberi bobot sama pada kedua kelas,
-sebagian besar model tidak memerlukan penyeimbangan. \textit{Random oversampling} hanya diterapkan pada C4.5, yaitu menggandakan baris kelas batal
-pada data pembentuk pohon \cite{ref:japkowicz-2002}. Faktor penggandaan dipilih
-dari $1{,}0$, $1{,}5$, dan $2{,}0$ dengan validasi silang di dalam data latih
-dan terpilih $2{,}0$. Data \textit{pruning}, validasi, dan uji tetap memakai
-distribusi asli.
+tidak ada model yang memakai \textit{resampling}. Satu-satunya penyesuaian
+adalah ambang skor keputusan SVM sebesar $-0{,}1875$, yang menggeser
+keputusan ke kelas batal. Data validasi dan uji tetap memakai distribusi
+asli.
 
 \subsubsection{Pemilihan Fitur dan Reduksi Dimensi}
 
-Seleksi fitur tidak dilakukan secara eksplisit. Ketujuh belas fitur
-dipertahankan karena ketiga fitur kategorikal berhubungan dengan pembatalan
-berdasarkan uji $\chi^2$ ($p<0{,}0001$) dan seluruh nilai \textit{Variance Inflation Factor} fitur numerik di bawah 1,6 sehingga tidak ada multikolinearitas
-yang berarti. Kolom \texttt{id} dibuang karena hanya berisi kode unik. PCA tidak
-dipakai pada pemodelan karena jumlah fitur relatif sedikit dan agar fitur asli
-tetap terbaca, serta hanya digunakan untuk visualisasi batas keputusan SVM
-dua dimensi.
+Ketujuh belas fitur asli dipertahankan karena ketiga fitur kategorikal
+berhubungan dengan pembatalan berdasarkan uji $\chi^2$ ($p<0{,}0001$) dan
+seluruh nilai \textit{Variance Inflation Factor} fitur numerik di bawah 1,6
+sehingga tidak ada multikolinearitas yang berarti. Kolom \texttt{id} dibuang
+karena hanya berisi kode unik. Seleksi fitur dilakukan pada tingkat blok:
+kombinasi blok untuk tiap model ditetapkan dari eksperimen saat pengembangan
+(Tabel~\ref{tab:preproc}). Di dalam blok tetangga, jarak hanya dihitung pada
+25 kolom dasar yang paling berkorelasi dengan label pada data referensi. PCA
+tidak dipakai pada pemodelan agar fitur asli tetap terbaca, dan hanya
+digunakan untuk visualisasi batas keputusan SVM dua dimensi.
 
 \subsubsection{Ringkasan \textit{Preprocessing} per Algoritma}
 
@@ -128,15 +170,15 @@ dua dimensi.
 \caption{Preprocessing yang diterapkan pada tiap algoritma}
 \label{tab:preproc}
 
-\begin{tabularx}{\textwidth}{@{}lXXX@{}}
+\begin{tabularx}{\textwidth}{@{}>{\raggedright\arraybackslash}p{2.4cm}*{4}{>{\raggedright\arraybackslash}X}@{}}
 \toprule
-Algoritma & Nilai hilang & Kategorikal & Fitur numerik \\
+Algoritma & Nilai hilang & Kategorikal & Fitur numerik & Blok tambahan \\
 \midrule
-KNN & Median dan modus & \textit{One-hot} & Standardisasi \\
-C4.5 & Bobot pecahan & Satu cabang per nilai & Tanpa penskalaan, ditambah fitur turunan \\
-\textit{Logistic Regression} & Median dan modus & \textit{One-hot} & Standardisasi \\
-SVM & Median dan modus & \textit{One-hot} & Standardisasi \\
-\textit{Naive Bayes} & Kategori tersendiri & Kode bilangan & \textit{Binning} 5 kuantil \\
+KNN & Median dan modus & \textit{One-hot} & Standardisasi & Perilaku \\
+C4.5 & Bobot pecahan & Satu cabang per nilai & Tanpa penskalaan, ditambah fitur turunan & Kalender, perilaku \\
+\textit{Logistic Regression} & Median dan modus, ditambah penanda & \textit{One-hot} & Standardisasi & Semua blok \\
+SVM & Median dan modus & \textit{One-hot} & Standardisasi dengan bobot & Kalender, perilaku, tetangga \\
+\textit{Naive Bayes} campuran & Median dan modus & \textit{One-hot} & Standardisasi, Gaussian & \textit{Target encoding}, tetangga \\
 \bottomrule
 \end{tabularx}
 \end{table}
@@ -844,6 +886,8 @@ Kelas ini berada pada \texttt{src/models/\allowbreak naive\_\allowbreak bayes/\a
         \textbf{Nama} & \textbf{Keterangan} \\
         \midrule
         \texttt{alpha} & Hitungan tambahan pada \textit{Laplace smoothing} untuk prior dan likelihood, nilai awal 1. \\
+        \texttt{feature\_types} & Daftar jenis tiap fitur, \texttt{'categorical'} atau \texttt{'gaussian'}. Nilai bawaan \texttt{None} berarti semua fitur kategorikal. \\
+        \texttt{var\_smoothing} & Pecahan varians fitur yang ditambahkan ke varians tiap kelas pada fitur Gaussian, nilai awal $10^{-9}$. \\
         \texttt{classes\_} & Label kelas yang terurut. \\
         \texttt{class\_log\_prior\_} & $\log P(c)$ untuk setiap kelas. \\
         \texttt{feature\_params\_} & Tabel $\log P(x_j\mid c)$ untuk tiap fitur. \\
@@ -862,7 +906,23 @@ Pelatihan hanya menghitung frekuensi. Prior dihitung sebagai $P(c)=(n_c+\alpha)/
 \log\left(n_{c,j}+\alpha|V_j|\right)
 \]
 
-Himpunan $V_j$ adalah nilai yang muncul pada kolom $j$ di data latih, dan $n_{c,j}$ hanya menghitung baris yang nilainya tidak kosong. Pada pipeline akhir nilai kosong sudah dikodekan menjadi kategori sehingga dihitung seperti nilai biasa, sedangkan NaN yang masih tersisa tidak ikut dihitung. Nilai yang tidak pernah terlihat pada suatu kelas, atau tidak ada di data latih, memakai $\alpha/(n_{c,j}+\alpha|V_j|)$. Dengan $\alpha>0$, tidak ada peluang yang bernilai nol \cite{ref:materi-14, ref:manning-2008}.
+Himpunan $V_j$ adalah nilai yang muncul pada kolom $j$ di data latih, dan $n_{c,j}$ hanya menghitung baris yang nilainya tidak kosong. Pada representasi kategorikal di notebook, nilai kosong sudah dikodekan menjadi kategori sehingga dihitung seperti nilai biasa, sedangkan NaN yang masih tersisa tidak ikut dihitung. Nilai yang tidak pernah terlihat pada suatu kelas, atau tidak ada di data latih, memakai $\alpha/(n_{c,j}+\alpha|V_j|)$. Dengan $\alpha>0$, tidak ada peluang yang bernilai nol \cite{ref:materi-14, ref:manning-2008}.
+
+Jika \texttt{feature\_types} diberikan, fitur bertipe \texttt{'gaussian'}
+dimodelkan dengan distribusi normal per kelas. Pelatihan menyimpan rata-rata
+$\mu_{c,j}$ dan varians $\sigma^2_{c,j}$ dari baris kelas $c$ yang tidak
+kosong. Varians ditambah \texttt{var\_smoothing} kali varians seluruh kolom
+agar tidak nol, sehingga
+
+\[
+\log P(x_j\mid c)=-\tfrac12\log\left(2\pi\sigma^2_{c,j}\right)-\frac{(x_j-\mu_{c,j})^2}{2\sigma^2_{c,j}}.
+\]
+
+Pada mode ini, prior kelas memakai proporsi tanpa \textit{smoothing},
+$P(c)=n_c/n$, sedangkan fitur kategorikal tetap memakai tabel frekuensi di
+atas. Model \textit{submission} memakai mode campuran ini: kolom dengan
+paling banyak dua nilai diperlakukan sebagai kategorikal dan kolom lain
+sebagai Gaussian.
 
 \paragraph{Prediksi}
 Skor setiap kelas dihitung dalam ruang logaritma sehingga perkalian banyak peluang kecil tidak menyebabkan \textit{underflow}.
@@ -958,18 +1018,17 @@ diimputasi terlebih dahulu pada model pembanding.
         \texttt{n\_\allowbreak neighbors} dan \texttt{weights} yang sama dengan
         model sendiri, serta pencarian \textit{brute force}.
     \item \textbf{Decision tree.} \texttt{DecisionTreeClassifier} dengan
-        \texttt{criterion='entropy'} dan \texttt{ccp\_alpha} yang dipilih dari
-        enam kandidat antara $0$ dan $2\cdot 10^{-3}$ menggunakan F1 macro
-        pada data \textit{pruning}. Pembanding ini memakai CART biner sehingga
-        tidak identik dengan C4.5.
+        \texttt{criterion='entropy'} dan dua nilai \texttt{ccp\_alpha}, yaitu
+        $0$ dan $2\cdot 10^{-4}$, yang dilatih pada data pembentuk pohon.
+        Pembanding ini memakai CART biner sehingga tidak identik dengan C4.5.
     \item \textbf{\textit{Logistic Regression}.} \texttt{LogisticRegression}
-        dengan \texttt{solver='saga'} dan $C=1/(n\lambda)$ agar skala penalti
-        setara dengan model sendiri.
+        dengan \texttt{solver='saga'}, $C=1/(n\lambda)$ agar skala penalti
+        setara dengan model sendiri, serta batas iterasi dan toleransi yang sama.
     \item \textbf{SVM.} \texttt{SVC} dengan $C=1$, derajat 3, \texttt{coef0=1},
         $\gamma=1/d$, dan toleransi $10^{-3}$ untuk kernel linear, polinomial,
         dan RBF.
-    \item \textbf{\textit{Naive Bayes}.} \texttt{CategoricalNB} dengan prior
-        kelas yang diperhalus sama seperti model sendiri.
+    \item \textbf{\textit{Naive Bayes}.} \texttt{CategoricalNB} dengan $\alpha$
+        yang sama pada representasi kategorikal 5 \textit{bin}.
 \end{itemize}
 
 \subsubsection{Penyimpanan dan Pemuatan Model}
@@ -1421,11 +1480,12 @@ mencatat \textit{loss} pada \texttt{loss\_history\_}, sehingga kurva
 
 Untuk membandingkan bentuk batas keputusan tiap kernel, notebook menghitung
 PCA dari 1.000 baris latih yang sudah dipraproses. Komponen pertama (PC1)
-menjelaskan 16,0\% varians data tersebut, sedangkan komponen kedua (PC2)
-menjelaskan 10,8\%. Enam model pada Gambar~\ref{fig:svm-batas} dilatih
-ulang dari dua komponen yang sama. Karena keduanya hanya mencakup sekitar
-26,8\% variasi data latih, gambar ini tidak mewakili batas keputusan model
-29 fitur yang hasil validasinya dirangkum pada Tabel~\ref{tab:svm-kernel}.
+menjelaskan 18,4\% varians data tersebut, sedangkan komponen kedua (PC2)
+menjelaskan 17,0\%. Enam model pada Gambar~\ref{fig:svm-batas} dilatih
+ulang dari dua komponen yang sama dengan $\gamma=1/2$. Karena keduanya hanya
+mencakup sekitar 35,4\% variasi data latih, gambar ini tidak mewakili batas
+keputusan model 55 fitur yang hasil validasinya dirangkum pada
+Tabel~\ref{tab:svm-kernel}.
 
 Fungsi \texttt{plot\_svm\_boundary} mengevaluasi
 \texttt{decision\_function} pada kisi titik. Warna latar menunjukkan kelas
@@ -1448,13 +1508,15 @@ hasil prediksi.}
 \label{fig:svm-batas}
 \end{figure}
 
-Pada kedua panel linear, skor tidak mencapai nol di area gambar,
-sehingga seluruh latar menunjukkan kelas tidak batal. Kernel polinomial
-dan RBF membentuk wilayah prediksi batal. Pada panel RBF, misalnya,
-sebagian wilayah ini dikelilingi kontur tertutup. Bentuk wilayah tersebut
-perlu dibaca bersama status konvergensinya. Batas pada panel QP
-polinomial berasal dari iterasi terakhir saat batas 50.000 langkah
-tercapai, sebelum optimasi memenuhi toleransi.
+Pada kedua panel linear, batas keputusan berupa garis lurus yang
+memisahkan wilayah kanan (prediksi batal) dari sisa bidang, dan QP serta
+SMO menghasilkan batas yang hampir sama. Pada kernel RBF, wilayah prediksi
+batal berada di bagian kanan atas dan dikelilingi kontur yang melengkung
+mengikuti sebaran data, juga hampir sama pada kedua pemecah. Bentuk
+wilayah perlu dibaca bersama status konvergensinya. Pada kedua panel
+polinomial, optimasi mencapai batas 50.000 iterasi sebelum memenuhi
+toleransi, sehingga batasnya berasal dari iterasi terakhir dan bentuknya
+berbeda antara QP dan SMO.
 \subsubsection{Visualisasi Graf Bayesian Network (Naive Bayes)}
 
 Fungsi \texttt{plot\_naive\_bayes\_graph} pada \texttt{src/models/naive\_bayes/visualization.py} menggambar graf yang menampilkan hubungan antara variabel kelas dan fitur, menggunakan Matplotlib. Kelas digambar sebagai simpul di tengah dengan panah ke setiap fitur, sesuai struktur Naive Bayes. Tebal panah menyatakan informasi bersama (\textit{mutual information}) antara fitur dan kelas \cite{ref:cover-2006}.
