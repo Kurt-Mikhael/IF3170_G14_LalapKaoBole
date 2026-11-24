@@ -1,15 +1,3 @@
-"""Fold-safe feature blocks for booking cancellation models.
-
-Feature concepts (calendar cycles, party/price ratios, booking history,
-missingness, target encodings, and neighbor summaries) are credited to the
-local SVM pilot supplied with this task. Its exact author is unknown. This is
-an independent implementation; neither pilot file is imported at runtime.
-
-All encoders assume rows in ``train`` are exchangeable references. Grouped
-cross-fitting prevents identical raw predictor rows crossing folds, but does
-not establish a forward-time validation protocol. No row IDs are used.
-"""
-
 from __future__ import annotations
 
 import hashlib
