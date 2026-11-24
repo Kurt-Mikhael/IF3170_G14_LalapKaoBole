@@ -103,6 +103,44 @@ Elastic Net menggabungkan regularisasi L1 dan L2 dalam satu fungsi penalti, deng
 
 Parameter $\rho\in[0,1]$ mengatur proporsi regularisasi L1 dan L2. Dengan demikian, Elastic Net menggabungkan kemampuan L1 dalam menghasilkan bobot nol dengan kemampuan L2 dalam mengendalikan besar bobot model.
 
+\subsubsection{Optimasi Numerik pada Logistic Regression}
+\label{sec:logreg-optimasi}
+Turunan \textit{log-likelihood} $\ell$ terhadap bobot ke-$j$ adalah
+\[
+\frac{\partial\ell}{\partial w_j}=\sum_{i=1}^{n}(y_i-p_i)\,x_{ij}.
+\]
+Persamaan $\partial\ell/\partial w_j=0$ tidak bisa diselesaikan dalam bentuk tertutup, jadi parameter dicari secara numerik \cite[bagian~12.2.1]{ref:shalizi-2012}. \textit{Gradient ascent} hanya memakai gradien dengan laju belajar tetap. Di dekat optimum gradiennya mengecil, sehingga langkahnya ikut mengecil dan pelatihan butuh banyak iterasi.
+
+Metode Newton juga memakai turunan kedua. Untuk vektor parameter $\boldsymbol{\theta}$, pembaruannya adalah
+\[
+\boldsymbol{\theta}^{(t+1)}=\boldsymbol{\theta}^{(t)}-H^{-1}\nabla\ell\left(\boldsymbol{\theta}^{(t)}\right)
+\]
+dengan $H$ matriks Hessian \cite[bagian~12.3.1]{ref:shalizi-2012}. Pada \textit{logistic regression} dengan penalti L2, Hessian-nya adalah
+\[
+H=-\sum_{i}p_i(1-p_i)\,\mathbf{x}_i\mathbf{x}_i^{T}-\lambda I .
+\]
+Matriks ini semidefinit negatif, jadi fungsi objektifnya cekung dan setiap titik dengan gradien nol adalah maksimum global \cite[bagian~1]{ref:minka-2003}. Newton biasanya konvergen dalam sedikit iterasi, tetapi setiap iterasi perlu membentuk dan menyelesaikan sistem berukuran $d\times d$. Biaya ini menjadi mahal kalau jumlah fitur besar. Untuk \textit{logistic regression}, metode Newton dikenal juga sebagai \textit{Iteratively Reweighted Least Squares} (IRLS) \cite[bagian~12.3.2]{ref:shalizi-2012}. Ada dua cara untuk memakai informasi turunan kedua tanpa membentuk Hessian penuh.
+
+\paragraph{\textit{Conjugate gradient ascent}.} Arah pencarian dibentuk dari gradien saat ini dikurangi sebagian arah sebelumnya, $\mathbf{u}=\mathbf{g}-\beta\,\mathbf{u}^{\mathrm{lama}}$. Minka memakai rumus Hestenes--Stiefel karena paling baik dalam praktik \cite[bagian~4]{ref:minka-2003}:
+\[
+\beta=\frac{\mathbf{g}^{T}(\mathbf{g}-\mathbf{g}^{\mathrm{lama}})}{(\mathbf{u}^{\mathrm{lama}})^{T}(\mathbf{g}-\mathbf{g}^{\mathrm{lama}})}.
+\]
+Pada permukaan kuadratik, rumus ini membuat arah baru konjugat terhadap arah lama, yaitu $\mathbf{u}^{T}H\mathbf{u}^{\mathrm{lama}}=0$. Panjang langkah di sepanjang $\mathbf{u}$ diambil dari langkah Newton satu dimensi:
+\[
+\eta=\frac{\mathbf{g}^{T}\mathbf{u}}{-\mathbf{u}^{T}H\mathbf{u}},
+\qquad
+-\mathbf{u}^{T}H\mathbf{u}=\lambda\,\mathbf{u}^{T}\mathbf{u}+\sum_i p_i(1-p_i)\left(\mathbf{u}^{T}\mathbf{x}_i\right)^2 .
+\]
+Bentuk kanan hanya butuh hasil kali $\mathbf{u}^{T}\mathbf{x}_i$ untuk semua data, jadi biayanya $O(nd)$ dan Hessian tidak perlu dibentuk.
+
+\paragraph{\textit{Quasi-Newton} dan L-BFGS.} Metode \textit{quasi-Newton} tidak menghitung Hessian, tetapi memperbarui taksiran $H^{-1}$ dari perubahan parameter $\mathbf{s}=\Delta\boldsymbol{\theta}$ dan perubahan gradien. BFGS menyimpan taksiran itu sebagai matriks $d\times d$ \cite[bagian~6]{ref:minka-2003}. L-BFGS (\textit{limited-memory} BFGS) hanya menyimpan $m$ pasangan $(\mathbf{s}_k,\mathbf{y}_k)$ terakhir dan menghitung arah pencarian dengan \textit{two-loop recursion} dalam $O(md)$ \cite[bab~7]{ref:nocedal-2006}. Pasangan hanya dipakai jika kelengkungannya positif, $\mathbf{s}_k^{T}\mathbf{y}_k>0$, agar taksiran $H^{-1}$ tetap definit.
+
+Kedua metode memakai \textit{line search} agar setiap langkah benar-benar menaikkan objektif. Syarat Armijo meminta
+\[
+\ell(\boldsymbol{\theta}+\eta\mathbf{u})\ \ge\ \ell(\boldsymbol{\theta})+c\,\eta\,\mathbf{g}^{T}\mathbf{u}
+\]
+dengan konstanta kecil $c$, misalnya $10^{-4}$. Jika syarat belum terpenuhi, $\eta$ diperkecil (\textit{backtracking}) \cite[bab~3]{ref:nocedal-2006}. Pada percobaan Minka, \textit{conjugate gradient} dan \textit{quasi-Newton} menjadi metode tercepat dan jauh mengungguli \textit{iterative scaling} \cite{ref:minka-2003}. Kedua metode ini mengandaikan objektif yang mulus. Penalti L1 tidak dapat diturunkan di $w_j=0$, sehingga keduanya tidak cocok untuk L1 dan \textit{Elastic Net} tanpa modifikasi.
+
 \subsection{Support Vector Machine}
 Support Vector Machine (SVM) mencari batas keputusan dengan margin lebar
 antara dua kelas. Pada model linear, posisi batas ini ditentukan oleh

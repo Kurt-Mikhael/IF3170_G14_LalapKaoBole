@@ -28,17 +28,22 @@ identitas yang tidak informatif tidak digunakan sebagai fitur, sedangkan nilai
 hilang ditangani dengan imputasi atau mekanisme khusus algoritma. Fitur
 kategorikal diubah sesuai kebutuhan model, sementara fitur numerik
 distandardisasi, diubah ke skala lain, atau dikelompokkan menjadi kategori.
-Pada C4.5, sejumlah fitur turunan ditambahkan dan kelas pembatalan
-ditangani dengan \textit{random oversampling} pada data pembentuk pohon. Seluruh
-parameter transformasi dipelajari hanya dari data latih agar informasi dari
-data validasi dan data uji tidak bocor ke proses pelatihan.
+Setiap model juga mendapat blok fitur tambahan yang sesuai, misalnya fitur
+kalender, perilaku pemesanan, \textit{target encoding}, dan ringkasan
+tetangga terdekat. Seluruh parameter transformasi dipelajari hanya dari data
+latih agar informasi dari data validasi dan data uji tidak bocor ke proses
+pelatihan.
 
 Setelah preprocessing, beberapa algoritma buatan sendiri dan implementasi
-scikit-learn dilatih dan dibandingkan. Pembagian data serta validasi
-digunakan untuk memilih konfigurasi dan model berdasarkan metrik evaluasi,
-terutama \textit{Macro F1}. Model terpilih kemudian dilatih kembali
-menggunakan seluruh data latih, diterapkan pada data uji, dan menghasilkan
-prediksi dalam berkas \textit{submission}. Dengan demikian, alur ini menjaga
+scikit-learn dilatih dan dibandingkan pada satu pembagian validasi
+berdasarkan metrik evaluasi, terutama \textit{Macro F1}. Konfigurasi tiap
+model ditetapkan dari eksperimen saat pengembangan. Model tersebut kemudian dilatih ulang dari
+\texttt{train.csv}, diterapkan pada data uji, dan menghasilkan prediksi dalam
+berkas \textit{submission}. C4.5 memakai seluruh data latih, sedangkan model
+lain memakai sampel terstratifikasi karena biaya komputasinya, yaitu 16.000
+baris untuk SVM dan 8.000 baris untuk KNN, \textit{Logistic Regression}, dan
+\textit{Naive Bayes}. Rinciannya ada pada bagian Pembagian Data dan Validasi.
+Dengan demikian, alur ini menjaga
 pemisahan data sekaligus memastikan proses dari data mentah hingga prediksi
 akhir dapat ditelusuri.
 
@@ -48,15 +53,17 @@ akhir dapat ditelusuri.
 paling banyak terdapat pada \texttt{num\_children} (sekitar 11\%), dan sekitar 39\% baris
 memiliki setidaknya satu nilai kosong. Menghapus baris akan membuang terlalu
 banyak data sehingga nilai kosong dipertahankan dan ditangani sesuai kebutuhan
-tiap algoritma. KNN, SVM, dan \textit{Logistic Regression} memerlukan masukan
-penuh sehingga nilai kosong diimputasi dengan median untuk fitur numerik dan
-modus untuk fitur kategorikal \cite{ref:materi-09}. Median dipilih karena tidak
-terpengaruh nilai ekstrem pada fitur yang miring. C4.5 tidak diimputasi karena
-dapat menanganinya langsung dengan meneruskan data ke semua cabang dengan bobot
-pecahan. \textit{Naive Bayes} tidak diimputasi dengan median atau modus,
-melainkan menjadikan nilai kosong sebagai kategori tersendiri (kode $-1$)
-\cite{ref:materi-09}. Cara ini lebih baik daripada melewatkan fitur yang kosong
-atau membuang baris, seperti yang dibandingkan pada Bab Eksperimen.
+tiap algoritma. KNN, SVM, \textit{Logistic Regression}, dan \textit{Naive
+Bayes} campuran memerlukan masukan penuh sehingga nilai kosong diimputasi
+dengan median untuk fitur numerik dan modus untuk fitur kategorikal
+\cite{ref:materi-09}. Median dipilih karena tidak terpengaruh nilai ekstrem
+pada fitur yang miring. Agar informasi kekosongan tidak hilang,
+\textit{Logistic Regression} juga mendapat blok penanda nilai kosong untuk
+delapan kolom. C4.5 tidak diimputasi karena dapat menanganinya langsung
+dengan meneruskan data ke semua cabang dengan bobot pecahan, dan
+\texttt{special\_requests} yang kosong diberi penanda tersendiri. Pada
+representasi kategorikal \textit{Naive Bayes} dan TAN, nilai kosong dijadikan
+kategori tersendiri \cite{ref:materi-09}.
 
 \paragraph{Data duplikat.} Baris yang identik tidak ditemukan.
 Namun, jika kolom \texttt{id} diabaikan, terdapat 64 baris yang isinya sama
@@ -78,43 +85,82 @@ muncul pada tiga baris), dan kategori yang muncul kurang dari 10 kali
 
 \paragraph{\textit{Encoding}.} Dataset memiliki tiga fitur kategorikal nominal,
 yaitu \texttt{meal\_package}, \texttt{room\_category}, dan
-\texttt{booking\_channel}. KNN, SVM, dan \textit{Logistic Regression} memakai
-\textit{one-hot encoding} dengan \texttt{handle\_\allowbreak unknown='ignore'}.
-C4.5 memperlakukannya secara kategorikal dengan satu cabang untuk setiap nilai.
-\textit{Naive Bayes} memetakan tiap kategori ke kode bilangan bulat yang tetap
-dianggap kategorikal, dan kategori yang tidak pernah muncul di data latih
-menjadi nilai kosong lalu dilewati.
+\texttt{booking\_channel}. KNN, SVM, \textit{Logistic Regression}, dan
+\textit{Naive Bayes} campuran memakai \textit{one-hot encoding}. C4.5 memperlakukannya secara kategorikal dengan
+satu cabang untuk setiap nilai, setelah kategori yang muncul kurang dari 10
+kali digabung. Pada representasi kategorikal \textit{Naive Bayes}, tiap
+kategori dipetakan ke kode bilangan bulat yang tetap dianggap kategorikal,
+dan kategori yang tidak pernah muncul di data latih dipetakan ke modus data
+latih.
 
 \paragraph{Normalisasi dan Standardisasi.} Skala fitur sangat berbeda, misalnya
 \texttt{nightly\_\allowbreak rate\_idr} bernilai jutaan sedangkan fitur lain di
-bawah 20. SVM dan \textit{Logistic Regression} memakai standardisasi Z-score.
-KNN membandingkan tiga skema, yaitu standardisasi, \textit{min-max}, dan
-\textit{log1p} pada fitur yang miring sebelum standardisasi, dan standardisasi
-dipilih. C4.5 tidak memerlukan penskalaan. \textit{Naive Bayes} mengubah fitur
-kontinu menjadi kategori dengan \textit{binning} kuantil sebanyak 5
-\textit{bin} \cite{ref:materi-09, ref:dougherty-1995}.
+bawah 20. Fitur numerik asli pada blok dasar (KNN, \textit{Logistic
+Regression}, dan \textit{Naive Bayes} campuran) serta pada SVM distandardisasi
+dengan Z-score. Fitur turunan pada blok tambahan diskalakan secara
+\textit{robust}, yaitu dikurangi median lalu dibagi jangkauan antarkuartil,
+kemudian dibatasi pada $[-8,8]$ agar nilai ekstrem tidak mendominasi jarak.
+C4.5 tidak memerlukan penskalaan. Representasi kategorikal \textit{Naive
+Bayes} mengubah fitur kontinu menjadi kategori dengan \textit{binning}
+kuantil sebanyak 5 \textit{bin} \cite{ref:materi-09, ref:dougherty-1995}.
 
-\paragraph{\textit{Feature Engineering}.} Pada C4.5, ditambahkan penanda
+\paragraph{\textit{Feature Engineering}.}\label{sec:fitur-tambahan} Fitur
+tambahan dibentuk sebagai blok yang dapat dipilih per model. Semua blok
+dihitung dari data latih saja, lalu diterapkan ke data validasi atau uji.
+
+\begin{itemize}
+    \item \textbf{Dasar.} Fitur numerik asli yang diimputasi dan distandardisasi,
+        ditambah \textit{one-hot} ketiga fitur kategorikal.
+    \item \textbf{Kalender.} Representasi siklus (sinus dan kosinus) untuk hari
+        dalam seminggu, hari dalam setahun, bulan, dan minggu, serta kuartal,
+        penanda akhir pekan, dan penanda bulan ramai atau sepi.
+    \item \textbf{Rombongan, tarif, dan riwayat.} Total tamu dan malam, rasio
+        dewasa terhadap anak, logaritma tarif, tarif per malam dan per tamu,
+        serta jumlah dan proporsi pembatalan sebelumnya.
+    \item \textbf{Perilaku.} Logaritma \textit{lead time}, penanda pemesanan
+        mendadak ($\le7$ hari) dan jauh hari ($>180$ hari), serta penanda dan
+        logaritma jumlah permintaan khusus.
+    \item \textbf{Penanda nilai kosong.} Satu kolom biner untuk tiap kolom yang
+        dapat kosong.
+    \item \textbf{\textit{Target encoding}.} Proporsi pembatalan per kategori
+        dan per kombinasi dua kategori, diperhalus ke arah proporsi global.
+    \item \textbf{Tetangga.} Proporsi pembatalan di antara 5, 15, dan 50
+        tetangga terdekat, versi berbobot jarak, jarak ke tetangga terdekat dari
+        tiap kelas, dan rata-rata jarak ke 15 tetangga.
+\end{itemize}
+
+Blok \textit{target encoding} dan tetangga memakai label. Untuk baris latih,
+keduanya dihitung secara \textit{out-of-fold}: data latih dibagi lima
+dengan pengelompokan baris identik, lalu nilai tiap baris dihitung dari empat
+bagian lainnya. Data validasi dan uji memakai seluruh data latih sebagai
+referensi. Dengan cara ini, label sebuah baris tidak ikut membentuk fiturnya
+sendiri. C4.5 juga mendapat fitur turunan sendiri, yaitu penanda
 \texttt{special\_requests} kosong, total malam, total tamu, indeks bulan
-kedatangan, hari dalam seminggu, dan tarif per orang.
+kedatangan, hari dalam seminggu, dan tarif per orang. Pada SVM, tiga fitur
+diberi bobot lebih besar sebelum digabung (\texttt{days\_before\_arrival} dan
+\texttt{nightly\_rate\_idr} dua kali, \texttt{special\_requests} 1,5 kali),
+jarak pada blok tetangga ditransformasi dengan logaritma bertanda, dan
+seluruh kolom tambahan dikalikan 0,75.
 
 \paragraph{\textit{Class Imbalance}.} Sekitar 33\% pemesanan dibatalkan. Karena
 metrik utama adalah \textit{Macro F1} yang memberi bobot sama pada kedua kelas,
-sebagian besar model tidak memerlukan penyeimbangan. \textit{Random oversampling} hanya diterapkan pada C4.5, yaitu menggandakan baris kelas batal
-pada data pembentuk pohon \cite{ref:japkowicz-2002}. Faktor penggandaan dipilih
-dari $1{,}0$, $1{,}5$, dan $2{,}0$ dengan validasi silang di dalam data latih
-dan terpilih $2{,}0$. Data \textit{pruning}, validasi, dan uji tetap memakai
-distribusi asli.
+tidak ada model yang memakai \textit{resampling}. Satu-satunya penyesuaian
+adalah ambang skor keputusan SVM sebesar $-0{,}1875$, yang menggeser
+keputusan ke kelas batal. Data validasi dan uji tetap memakai distribusi
+asli.
 
 \subsubsection{Pemilihan Fitur dan Reduksi Dimensi}
 
-Seleksi fitur tidak dilakukan secara eksplisit. Ketujuh belas fitur
-dipertahankan karena ketiga fitur kategorikal berhubungan dengan pembatalan
-berdasarkan uji $\chi^2$ ($p<0{,}0001$) dan seluruh nilai \textit{Variance Inflation Factor} fitur numerik di bawah 1,6 sehingga tidak ada multikolinearitas
-yang berarti. Kolom \texttt{id} dibuang karena hanya berisi kode unik. PCA tidak
-dipakai pada pemodelan karena jumlah fitur relatif sedikit dan agar fitur asli
-tetap terbaca, serta hanya digunakan untuk visualisasi batas keputusan SVM
-dua dimensi.
+Ketujuh belas fitur asli dipertahankan karena ketiga fitur kategorikal
+berhubungan dengan pembatalan berdasarkan uji $\chi^2$ ($p<0{,}0001$) dan
+seluruh nilai \textit{Variance Inflation Factor} fitur numerik di bawah 1,6
+sehingga tidak ada multikolinearitas yang berarti. Kolom \texttt{id} dibuang
+karena hanya berisi kode unik. Seleksi fitur dilakukan pada tingkat blok:
+kombinasi blok untuk tiap model ditetapkan dari eksperimen saat pengembangan
+(Tabel~\ref{tab:preproc}). Di dalam blok tetangga, jarak hanya dihitung pada
+25 kolom dasar yang paling berkorelasi dengan label pada data referensi. PCA
+tidak dipakai pada pemodelan agar fitur asli tetap terbaca, dan hanya
+digunakan untuk visualisasi batas keputusan SVM dua dimensi.
 
 \subsubsection{Ringkasan \textit{Preprocessing} per Algoritma}
 
@@ -124,15 +170,15 @@ dua dimensi.
 \caption{Preprocessing yang diterapkan pada tiap algoritma}
 \label{tab:preproc}
 
-\begin{tabularx}{\textwidth}{@{}lXXX@{}}
+\begin{tabularx}{\textwidth}{@{}>{\raggedright\arraybackslash}p{2.4cm}*{4}{>{\raggedright\arraybackslash}X}@{}}
 \toprule
-Algoritma & Nilai hilang & Kategorikal & Fitur numerik \\
+Algoritma & Nilai hilang & Kategorikal & Fitur numerik & Blok tambahan \\
 \midrule
-KNN & Median dan modus & \textit{One-hot} & Standardisasi \\
-C4.5 & Bobot pecahan & Satu cabang per nilai & Tanpa penskalaan, ditambah fitur turunan \\
-\textit{Logistic Regression} & Median dan modus & \textit{One-hot} & Standardisasi \\
-SVM & Median dan modus & \textit{One-hot} & Standardisasi \\
-\textit{Naive Bayes} & Kategori tersendiri & Kode bilangan & \textit{Binning} 5 kuantil \\
+KNN & Median dan modus & \textit{One-hot} & Standardisasi & Perilaku \\
+C4.5 & Bobot pecahan & Satu cabang per nilai & Tanpa penskalaan, ditambah fitur turunan & Kalender, perilaku \\
+\textit{Logistic Regression} & Median dan modus, ditambah penanda & \textit{One-hot} & Standardisasi & Semua blok \\
+SVM & Median dan modus & \textit{One-hot} & Standardisasi dengan bobot & Kalender, perilaku, tetangga \\
+\textit{Naive Bayes} campuran & Median dan modus & \textit{One-hot} & Standardisasi, Gaussian & \textit{Target encoding}, tetangga \\
 \bottomrule
 \end{tabularx}
 \end{table}
@@ -185,10 +231,534 @@ def fit(self, X, y):
     return self
 \end{lstlisting}
 
-Metode \texttt{fit} memvalidasi masukan, menyimpan data latih, dan
-menjalankan solver yang dipilih.
+Metode \texttt{fit} hanya menyimpan salinan data latih dan mengubah label
+menjadi indeks kelas $0, 1, \dots$ agar mudah dihitung dengan
+\texttt{np.bincount}. Tidak ada proses pembelajaran pada tahap ini.
 
-Solver QP membentuk
+\begin{lstlisting}
+@staticmethod
+def _k_smallest(values, k):
+    kth = np.partition(values, k - 1, axis=1)[:, k - 1]
+    result = np.empty((len(values), k), dtype=int)
+    for row, (row_values, limit) in enumerate(zip(values, kth)):
+        candidates = np.flatnonzero(row_values <= limit)
+        result[row] = candidates[np.argsort(row_values[candidates], kind="stable")[:k]]
+    return result
+\end{lstlisting}
+
+Fungsi ini mengambil indeks $k$ nilai terkecil pada tiap baris matriks jarak.
+\texttt{np.partition} mencari nilai ke-$k$ tanpa mengurutkan seluruh data
+latih, lalu hanya kandidat yang nilainya tidak lebih besar dari nilai tersebut
+yang diurutkan. Urutan \textit{stable} membuat tetangga dengan jarak sama
+dipilih berdasarkan indeks terkecil sehingga hasilnya deterministik.
+
+\begin{lstlisting}
+def _neighbor_indices_and_distances(self, X):
+    X_array = self._as_2d_features(X)
+    train_norms = np.sum(self._X_train ** 2, axis=1)
+    nearest = np.empty((len(X_array), self.n_neighbors), dtype=int)
+    distances = np.empty((len(X_array), self.n_neighbors), dtype=float)
+    for start in range(0, len(X_array), self.batch_size):
+        batch = X_array[start : start + self.batch_size]
+        squared = (np.sum(batch ** 2, axis=1)[:, None]
+                   + train_norms[None, :] - 2 * batch @ self._X_train.T)
+        order = self._k_smallest(squared, self.n_neighbors)
+        diff = batch[:, None, :] - self._X_train[order]
+        nearest[start : start + len(batch)] = order
+        distances[start : start + len(batch)] = np.sqrt(np.sum(diff ** 2, axis=2))
+    return nearest, distances
+\end{lstlisting}
+
+Fungsi ini mencari tetangga terdekat dan jaraknya untuk seluruh data uji.
+Jarak dihitung per \textit{batch} dengan identitas
+$\lVert a-b\rVert^2=\lVert a\rVert^2+\lVert b\rVert^2-2a\cdot b$ sehingga
+matriks jarak penuh tidak perlu disimpan dan memori tetap terjaga. Setelah
+$k$ tetangga terpilih, jaraknya dihitung ulang secara langsung dari selisih
+vektor untuk menghindari galat pembulatan dari identitas tersebut.
+
+\begin{lstlisting}
+def predict_proba(self, X):
+    nearest, distances = self._neighbor_indices_and_distances(X)
+    neighbour_labels = self._y_encoded[nearest]
+    probabilities = np.zeros((len(nearest), len(self.classes_)))
+    for i, (labels, d) in enumerate(zip(neighbour_labels, distances)):
+        if self.weights == "uniform":
+            votes = np.ones_like(d)
+        else:
+            exact = d == 0
+            votes = exact.astype(float) if exact.any() else 1.0 / d
+        probabilities[i] = np.bincount(labels, weights=votes, minlength=len(self.classes_))
+        probabilities[i] /= probabilities[i].sum()
+    return probabilities
+\end{lstlisting}
+
+Fungsi ini menghitung probabilitas tiap kelas dari suara tetangga. Pada bobot
+\texttt{uniform} setiap tetangga bernilai satu suara, sedangkan pada
+\texttt{distance} suara bernilai $1/d$ sehingga tetangga yang dekat lebih
+berpengaruh. Jika ada tetangga dengan jarak nol, hanya tetangga tersebut yang
+dihitung agar tidak terjadi pembagian dengan nol. Hasilnya dinormalkan menjadi
+probabilitas.
+
+\begin{lstlisting}
+def predict(self, X):
+    return self.classes_[np.argmax(self.predict_proba(X), axis=1)]
+\end{lstlisting}
+
+Fungsi ini memilih kelas dengan probabilitas terbesar. Jika hasil pemungutan
+suara seri, \texttt{np.argmax} memilih kelas yang pertama pada
+\texttt{classes\_}.
+
+\subsubsection{Implementasi Decision Tree Learning}
+
+Algoritma yang dipilih adalah C4.5 (\texttt{src/models/c45/c45.py}) dan
+diimplementasikan lewat dua kelas. Kelas \texttt{TreeNode} merepresentasikan
+satu simpul pohon, yaitu menyimpan distribusi kelas, atribut dan ambang uji,
+cabang anak, serta probabilitas cabang $p_i$. Kelas \texttt{C45DecisionTree}
+membangun pohon secara rekursif dengan kriteria \textit{gain ratio}, menangani
+nilai kosong dengan bobot pecahan, memangkas pohon dengan \textit{Reduced Error
+Pruning}, dan melakukan prediksi. Selain itu terdapat fungsi bantu
+\texttt{entropy} dan \texttt{is\_missing} pada tingkat modul.
+
+\begin{lstlisting}
+def entropy(counts):
+    counts = np.asarray(counts, dtype=float)
+    total = counts.sum(axis=-1, keepdims=True)
+    p = np.divide(counts, total, out=np.zeros_like(counts), where=total > 0)
+    log_p = np.log2(p, out=np.zeros_like(p), where=p > 0)
+    return -(p * log_p).sum(axis=-1)
+\end{lstlisting}
+
+Fungsi ini menghitung entropi dari jumlah (bobot) data tiap kelas. Masukan
+dapat berupa vektor atau matriks sehingga entropi banyak kandidat pemisahan
+dapat dihitung sekaligus tanpa \textit{loop}. Suku dengan probabilitas nol
+dianggap bernilai nol agar tidak menghasilkan $\log 0$.
+
+\begin{lstlisting}
+class TreeNode:
+    def __init__(self, counts):
+        self.distribution = counts / counts.sum()
+        self.prediction = int(np.argmax(counts))
+        self.feature = None
+        self.threshold = None
+        self.children = {}
+        self.probabilities = {}
+        self.validation_errors = 0.0
+
+    def is_leaf(self):
+        return self.feature is None
+\end{lstlisting}
+
+Konstruktor \texttt{TreeNode} menerima jumlah bobot tiap kelas pada simpul
+tersebut. Dari jumlah itu dihitung proporsi kelas (\texttt{distribution}) dan
+kelas mayoritas (\texttt{prediction}). Simpul dengan \texttt{feature} kosong
+adalah daun. Nilai \texttt{threshold} kosong menandakan atribut kategorikal,
+\texttt{children} memetakan nilai cabang ke simpul anak, dan
+\texttt{probabilities} menyimpan $p_i$ tiap cabang. Atribut
+\texttt{validation\_errors} dipakai saat \textit{pruning}.
+
+\begin{lstlisting}
+def fit(self, X, y):
+    self.feature_names = list(X.columns)
+    self.classes, self.train_y = np.unique(np.asarray(y), return_inverse=True)
+    self.is_categorical, self.train_columns, self.train_missing = [], [], []
+    for name in self.feature_names:
+        if X[name].dtype == object:
+            column = X[name].to_numpy(dtype=object)
+            missing = np.array([is_missing(v) for v in column])
+        else:
+            column = X[name].to_numpy(dtype=float)
+            missing = np.isnan(column)
+        self.is_categorical.append(X[name].dtype == object)
+        self.train_columns.append(column)
+        self.train_missing.append(missing)
+
+    all_rows = np.arange(len(self.train_y))
+    self.root = self.build_tree(all_rows, np.ones(len(all_rows)),
+                                set(range(len(self.feature_names))))
+    del self.train_columns, self.train_missing, self.train_y
+    return self
+\end{lstlisting}
+
+Metode \texttt{fit} menyiapkan data dalam bentuk kolom NumPy, menentukan
+atribut mana yang kategorikal (bertipe \texttt{object}), dan mencatat posisi
+nilai kosong pada tiap kolom. Setiap baris latih mulai dengan bobot $1$. Pohon
+dibangun dari akar lewat \texttt{build\_tree}, lalu data latih dibuang agar
+model yang disimpan tidak membawa data.
+
+\begin{lstlisting}
+def build_tree(self, rows, weights, attributes):
+    counts = np.bincount(self.train_y[rows], weights=weights, minlength=len(self.classes))
+    node = TreeNode(counts)
+    if np.count_nonzero(counts) <= 1 or not attributes:
+        return node
+    best = self.find_best_split(rows, weights, attributes)
+    if best is None:
+        return node
+    feature, threshold = best
+    column = self.train_columns[feature][rows]
+    missing = self.train_missing[feature][rows]
+    if threshold is None:
+        branches = {v: ~missing & (column == v) for v in np.unique(column[~missing])}
+    else:
+        branches = {"left": ~missing & (column <= threshold),
+                    "right": ~missing & (column > threshold)}
+    node.feature, node.threshold = feature, threshold
+    child_attributes = attributes - {feature} if threshold is None else attributes
+    known_weight = weights[~missing].sum()
+    for key, mask in branches.items():
+        p = weights[mask].sum() / known_weight
+        node.probabilities[key] = p
+        child_rows = np.concatenate([rows[mask], rows[missing]])
+        child_weights = np.concatenate([weights[mask], weights[missing] * p])
+        node.children[key] = self.build_tree(child_rows, child_weights, child_attributes)
+    return node
+\end{lstlisting}
+
+Fungsi ini membangun pohon secara rekursif. Rekursi berhenti dan menghasilkan
+daun jika simpul hanya berisi satu kelas, atribut sudah habis, atau tidak ada
+pemisahan yang berguna. Jika tidak, data dibagi menurut atribut terbaik, yaitu
+satu cabang per nilai untuk atribut kategorikal dan dua cabang \texttt{left}
+dan \texttt{right} untuk atribut numerik. Atribut kategorikal tidak dipakai lagi
+di bawah simpul tersebut, sedangkan atribut numerik boleh dipakai ulang.
+Baris yang nilainya kosong pada atribut ini diteruskan ke semua cabang dengan
+bobot dikali $p_i$, yaitu proporsi bobot data berisi nilai pada cabang
+tersebut.
+
+\begin{lstlisting}
+def find_best_split(self, rows, weights, attributes):
+    best, best_ratio = None, 0.0
+    for feature in sorted(attributes):
+        result = self.evaluate_attribute(rows, weights, feature)
+        if result is not None and result[0] > best_ratio:
+            best_ratio, best = result[0], (feature, result[1])
+    return best
+\end{lstlisting}
+
+Fungsi ini mengevaluasi setiap atribut yang tersisa lalu memilih atribut dengan
+\textit{gain ratio} terbesar beserta ambangnya. Nilai \texttt{None} dikembalikan
+jika tidak ada atribut yang memberi \textit{gain} positif.
+
+\begin{lstlisting}
+def evaluate_attribute(self, rows, weights, feature):
+    known = ~self.train_missing[feature][rows]
+    if not known.any():
+        return None
+    values = self.train_columns[feature][rows][known]
+    y, w = self.train_y[rows][known], weights[known]
+    fraction_known = w.sum() / weights.sum()
+    n_classes = len(self.classes)
+
+    if self.is_categorical[feature]:
+        threshold = None
+        categories, category_index = np.unique(values, return_inverse=True)
+        counts = np.zeros((len(categories), n_classes))
+        np.add.at(counts, (category_index, y), w)
+        if len(categories) < 2:
+            return None
+    else:
+        order = np.argsort(values, kind="mergesort")
+        values, y, w = values[order], y[order], w[order]
+        cumulative = np.cumsum(np.eye(n_classes)[y] * w[:, None], axis=0)
+        cuts = np.nonzero(values[1:] > values[:-1])[0]
+        if len(cuts) == 0:
+            return None
+        left = cumulative[cuts]
+        right = cumulative[-1] - left
+        n_left, n_right = left.sum(axis=1), right.sum(axis=1)
+        gains = entropy(cumulative[-1]) - (n_left * entropy(left) + n_right * entropy(right)) / w.sum()
+        best = int(np.argmax(gains))
+        threshold = (values[cuts[best]] + values[cuts[best] + 1]) / 2
+        counts = np.vstack([left[best], right[best]])
+
+    sizes = counts.sum(axis=1)
+    gain = fraction_known * (entropy(counts.sum(axis=0)) - (sizes / sizes.sum() * entropy(counts)).sum())
+    split_info = entropy(sizes)
+    if gain <= EPS or split_info <= EPS:
+        return None
+    return gain / split_info, threshold
+\end{lstlisting}
+
+Fungsi ini menghitung \textit{gain ratio} satu atribut dan mengembalikan nilai
+tersebut bersama ambangnya. Hanya baris dengan nilai diketahui yang dipakai.
+Pada atribut kategorikal, matriks jumlah bobot kelas per kategori disusun
+dengan \texttt{np.add.at}. Pada atribut numerik, data diurutkan dan jumlah
+kumulatif tiap kelas dipakai untuk mendapatkan \textit{gain} semua kandidat
+ambang sekaligus. Kandidat berada di titik tengah dua nilai berurutan yang
+berbeda dan dipilih yang \textit{gain}-nya terbesar sehingga biaya per atribut
+numerik adalah $O(n\log n)$. \textit{Gain} akhir dikali fraksi data yang
+diketahui lalu dibagi \textit{split information} untuk menghasilkan
+\textit{gain ratio}.
+
+\begin{lstlisting}
+def predict(self, X):
+    rows = X[self.feature_names].to_numpy(dtype=object)
+    return self.classes[[int(np.argmax(self.predict_distribution(self.root, row)))
+                         for row in rows]]
+
+def predict_distribution(self, node, row):
+    if node.is_leaf():
+        return node.distribution
+    key = self.branch_key(node, row)
+    if key is None:
+        return sum(p * self.predict_distribution(node.children[k], row)
+                   for k, p in node.probabilities.items())
+    return self.predict_distribution(node.children[key], row)
+
+def branch_key(self, node, row):
+    value = row[node.feature]
+    if is_missing(value):
+        return None
+    if node.threshold is None:
+        return value if value in node.children else None
+    return "left" if value <= node.threshold else "right"
+\end{lstlisting}
+
+Prediksi menelusuri pohon dari akar sampai daun. Fungsi \texttt{branch\_key}
+menentukan cabang yang diikuti sebuah baris, dan mengembalikan \texttt{None}
+jika nilainya kosong atau kategorinya tidak pernah muncul saat pelatihan. Pada
+kasus tersebut \texttt{predict\_distribution} menelusuri seluruh cabang lalu
+menggabungkan distribusi kelasnya dengan bobot $p_i$. Fungsi \texttt{predict}
+memilih kelas dengan proporsi terbesar. Distribusi pada daun juga dipakai
+sebagai probabilitas untuk ROC-AUC dan bonus \textit{cost-sensitive}.
+
+\begin{lstlisting}
+def prune(self, X_val, y_val):
+    rows = X_val[self.feature_names].to_numpy(dtype=object)
+    y = np.searchsorted(self.classes, np.asarray(y_val))
+    self.count_validation_errors(self.root, rows, y, np.ones(len(y)))
+    while True:
+        candidates = []
+        self.collect_candidates(self.root, candidates)
+        if not candidates:
+            break
+        gain, size, node = max(candidates, key=lambda candidate: candidate[:2])
+        if gain <= 1e-9:
+            break
+        node.feature, node.threshold = None, None
+        node.children, node.probabilities = {}, {}
+    return self
+\end{lstlisting}
+
+Metode \texttt{prune} menjalankan \textit{Reduced Error Pruning} pada data
+\textit{pruning}. Galat tiap simpul jika dijadikan daun dihitung lebih dulu,
+lalu simpul internal yang pemangkasannya paling mengurangi galat dijadikan daun.
+Jika ada beberapa simpul dengan pengurangan sama, subpohon terbesar dipilih.
+Proses diulang sampai tidak ada pemangkasan yang menurunkan galat.
+
+\begin{lstlisting}
+def count_validation_errors(self, node, rows, y, weights):
+    node.validation_errors = float(np.sum(weights * (y != node.prediction)))
+    if node.is_leaf():
+        return
+    keys = np.array([self.branch_key(node, row) for row in rows], dtype=object)
+    unknown = np.array([key is None for key in keys], dtype=bool)
+    for key, child in node.children.items():
+        mask = keys == key
+        self.count_validation_errors(child,
+            np.concatenate([rows[mask], rows[unknown]]),
+            np.concatenate([y[mask], y[unknown]]),
+            np.concatenate([weights[mask], weights[unknown] * node.probabilities[key]]))
+
+def collect_candidates(self, node, candidates):
+    if node.is_leaf():
+        return node.validation_errors, 1
+    subtree_errors, size = 0, 1
+    for child in node.children.values():
+        child_errors, child_size = self.collect_candidates(child, candidates)
+        subtree_errors += child_errors
+        size += child_size
+    candidates.append((subtree_errors - node.validation_errors, size, node))
+    return subtree_errors, size
+\end{lstlisting}
+
+Fungsi \texttt{count\_validation\_errors} mengalirkan data \textit{pruning} ke
+bawah pohon dan mencatat pada tiap simpul bobot data yang salah diprediksi jika
+simpul itu dijadikan daun. Data dengan nilai kosong ikut ke semua cabang dengan
+bobot $p_i$, sama seperti saat pelatihan. Fungsi \texttt{collect\_candidates}
+menjumlahkan galat daun pada tiap subpohon, lalu mencatat selisih galat subpohon
+dan galat simpul sebagai keuntungan pemangkasan beserta ukuran subpohonnya.
+
+\subsubsection{Implementasi Logistic Regression}
+
+Kelas \texttt{LogisticRegressionClassifier}
+(\texttt{src/models/logreg/logreg.py}) mengimplementasikan \textit{logistic
+regression} untuk klasifikasi biner. Pelatihan memaksimalkan rata-rata
+\textit{log-likelihood} dikurangi penalti, setara dengan meminimalkan
+\textit{log-loss}. Parameter utamanya adalah
+\texttt{penalty} (\texttt{None}, \texttt{l1}, \texttt{l2}, atau
+\texttt{elastic\allowbreak net}), \texttt{reg\_strength} ($\lambda$),
+\texttt{l1\_ratio} ($\rho$), \texttt{learning\_rate}, \texttt{max\_iter},
+\texttt{batch\_size}, dan \texttt{solver}. Nilai bawaan \texttt{solver} adalah
+\texttt{gradient\_ascent} yang dibahas di bagian ini. Dua pilihan lain,
+\texttt{conjugate\_gradient} dan \texttt{lbfgs}, dibahas pada bagian bonus
+(Bagian~\ref{sec:bonus-logreg-opt}). Kelas ini juga menyediakan
+\texttt{get\_params} dan \texttt{set\_params} agar kompatibel dengan antarmuka
+\texttt{scikit-learn}.
+
+\begin{lstlisting}
+class LogisticRegressionClassifier:
+    def __init__(self, learning_rate=0.1, max_iter=2000, penalty=None,
+                 reg_strength=0.01, l1_ratio=0.5, tol=1e-7, patience=10,
+                 batch_size=None, random_state=42, record_history=False,
+                 solver="gradient_ascent"):
+        self.learning_rate, self.max_iter = learning_rate, max_iter
+        self.penalty, self.reg_strength, self.l1_ratio = penalty, reg_strength, l1_ratio
+        self.tol, self.patience = tol, patience
+        self.batch_size, self.random_state = batch_size, random_state
+        self.record_history = record_history
+        self.solver = solver
+\end{lstlisting}
+
+Konstruktor menyimpan hiperparameter. Nilai \texttt{batch\_size=None} berarti
+seluruh data dipakai pada tiap pembaruan, nilai $1$ menghasilkan
+\textit{stochastic gradient ascent}, dan nilai lain menghasilkan
+\textit{mini-batch}. Parameter \texttt{tol} dan \texttt{patience} mengatur
+penghentian dini, sedangkan \texttt{record\_history} menyimpan lintasan
+parameter untuk visualisasi.
+
+\begin{lstlisting}
+@staticmethod
+def _sigmoid(z):
+    e = np.exp(-np.abs(z))
+    return np.where(z >= 0, 1 / (1 + e), e / (1 + e))
+\end{lstlisting}
+
+Fungsi ini menghitung sigmoid $\sigma(z)=1/(1+e^{-z})$ dengan dua cabang
+bergantung pada tanda $z$. Eksponen selalu memakai $-|z|$ sehingga tidak
+terjadi \textit{overflow} walaupun skor sangat besar.
+
+\begin{lstlisting}
+def _regularization(self):
+    if self.penalty is None:
+        return 0.0, 0.0
+    ratio = {"l1": 1.0, "l2": 0.0, "elasticnet": self.l1_ratio}[self.penalty]
+    return self.reg_strength * ratio, self.reg_strength * (1 - ratio)
+\end{lstlisting}
+
+Fungsi ini menerjemahkan jenis penalti menjadi dua koefisien, yaitu koefisien
+L1 dan L2. L1 memakai seluruh $\lambda$ pada suku L1, L2 memakai seluruh
+$\lambda$ pada suku L2, dan \textit{Elastic Net} membagi $\lambda$ menurut
+\texttt{l1\_ratio}.
+
+\begin{lstlisting}
+def _log_likelihood_gradient(self, X, y, w, b):
+    l1, l2 = self._regularization()
+    z = X @ w + b
+    objective = -np.mean(np.logaddexp(0, (1 - 2 * y) * z))
+    objective -= l1 * np.abs(w).sum() + 0.5 * l2 * (w @ w)
+    residual = y - self._sigmoid(z)
+    dw = X.T @ residual / len(y) - l1 * np.sign(w) - l2 * w
+    db = residual.mean()
+    return float(objective), dw, float(db)
+\end{lstlisting}
+
+Fungsi ini menghitung nilai fungsi objektif dan gradiennya. \textit{Log-likelihood}
+dihitung dengan \texttt{np.logaddexp} agar stabil secara numerik. Gradien bobot
+adalah $\frac{1}{n}X^{T}(y-p)$ dikurangi gradien penalti, dengan L1 memakai
+subgradien $\mathrm{sign}(w)$. Bias tidak dikenai penalti.
+
+\begin{lstlisting}
+def _fit_gradient_ascent(self, X, y, rng):
+    w, b = np.zeros(X.shape[1]), 0.0
+    self.loss_history_ = [-self._log_likelihood_gradient(X, y, w, b)[0]]
+    stable_epochs = 0
+    size = len(X) if self.batch_size is None else min(self.batch_size, len(X))
+    for epoch in range(1, self.max_iter + 1):
+        indices = rng.permutation(len(X)) if size < len(X) else None
+        for start in range(0, len(X), size):
+            batch = slice(None) if indices is None else indices[start:start + size]
+            _, dw, db = self._log_likelihood_gradient(X[batch], y[batch], w, b)
+            w += self.learning_rate * dw
+            b += self.learning_rate * db
+        loss = -self._log_likelihood_gradient(X, y, w, b)[0]
+        previous_loss = self.loss_history_[-1]
+        self.loss_history_.append(loss)
+        if abs(previous_loss - loss) <= self.tol * max(1.0, abs(previous_loss)):
+            stable_epochs += 1
+        else:
+            stable_epochs = 0
+        if stable_epochs >= self.patience:
+            return w, b, epoch, True
+    return w, b, epoch, False
+\end{lstlisting}
+
+Fungsi ini adalah inti pelatihan. Bobot dan bias dimulai dari nol, lalu pada
+tiap \textit{epoch} data diacak dan dibagi menjadi \textit{batch} sesuai
+\texttt{batch\_size}. Parameter digeser searah gradien dengan langkah
+\texttt{learning\_rate}. Setelah satu \textit{epoch}, \textit{loss} pada seluruh
+data dicatat di \texttt{loss\_history\_}. Pelatihan berhenti jika perubahan
+\textit{loss} lebih kecil dari \texttt{tol} selama \texttt{patience}
+\textit{epoch} berturut-turut dan fungsi mengembalikan penanda konvergen. Jika
+\texttt{max\_iter} tercapai lebih dulu, penandanya \texttt{False}. Kompleksitas
+tiap \textit{epoch} pada \textit{full-batch} adalah $O(nd)$.
+
+\begin{lstlisting}
+def fit(self, X, y):
+    X = self._features(X)
+    y = np.asarray(y)
+    classes, encoded = np.unique(y, return_inverse=True)
+    rng = np.random.default_rng(self.random_state)
+    if self.solver == "gradient_ascent":
+        w, b, iterations, converged = self._fit_gradient_ascent(X, encoded.astype(float), rng)
+    else:
+        w, b, iterations, converged = self._fit_line_search(X, encoded.astype(float))
+    self.coef_ = w[None, :]
+    self.intercept_ = np.array([b])
+    self.classes_ = classes
+    self.n_iter_, self.converged_ = iterations, bool(converged)
+    return self
+\end{lstlisting}
+
+Metode \texttt{fit} memvalidasi masukan, mengubah dua label kelas menjadi
+$0$ dan $1$, menjalankan \textit{solver} yang dipilih, lalu menyimpan hasilnya pada
+\texttt{coef\_}, \texttt{intercept\_}, dan \texttt{classes\_}. Peringatan
+dikeluarkan jika pelatihan berhenti sebelum konvergen, dan kelas selain dua
+ditolak karena implementasi ini khusus biner.
+
+\begin{lstlisting}
+def decision_function(self, X):
+    X = self._features(X)
+    return X @ self.coef_[0] + self.intercept_[0]
+
+def predict_proba(self, X):
+    positive = self._sigmoid(self.decision_function(X))
+    return np.column_stack((1 - positive, positive))
+
+def predict(self, X, threshold=0.5):
+    probabilities = self.predict_proba(X)
+    return self.classes_[(probabilities[:, 1] >= threshold).astype(int)]
+\end{lstlisting}
+
+Fungsi \texttt{decision\_function} menghitung skor linear $w^{T}x+b$, lalu
+\texttt{predict\_proba} mengubahnya menjadi probabilitas kedua kelas dengan
+sigmoid. Fungsi \texttt{predict} membandingkan probabilitas kelas positif dengan
+\texttt{threshold}. Nilai bawaannya $0{,}5$ dan dapat diubah, misalnya menjadi
+$2/3$ pada bonus \textit{cost-sensitive}.
+
+\subsubsection{Implementasi Support Vector Machine}
+
+Kelas \texttt{SVM} pada \texttt{src/models/svm/svm.py} menerima dua kelas
+dan fitur numerik yang terhingga. Imputasi, \textit{one-hot encoding}, dan
+standardisasi dilakukan di luar kelas. Parameter \texttt{kernel} memilih
+kernel linear, polinomial, atau Gaussian (RBF). Parameter \texttt{solver}
+menentukan cara mencari koefisien: QP dengan gradien terproyeksi
+(Bagian~\ref{sec:svm-qp}) atau SMO dengan pembaruan sepasang koefisien
+(Bagian~\ref{sec:svm-smo}).
+
+\Needspace{10\baselineskip}
+\begin{lstlisting}[caption={Persiapan data pada metode fit}, label={lst:svm-fit}]
+classes = np.unique(y)
+# ...
+signs = np.where(y == classes[1], 1.0, -1.0)
+# ...
+self._X_train, self._y_train, self.classes_ = X.copy(), signs, classes
+self.n_features_in_ = X.shape[1]
+self._gamma = gamma
+self._alphas = np.zeros(len(X))
+\end{lstlisting}
+
+\texttt{np.unique} mengurutkan label dan \texttt{np.where} memberi tanda
+$-1$ pada kelas pertama serta $+1$ pada kelas kedua. Solver QP membentuk
 matriks kernel penuh $K$ berukuran $n\times n$ dan matriks $Q$. Solver SMO
 juga memakai matriks penuh kecuali jalur cache LRU dipilih berdasarkan anggaran.
 Pada jalur tersebut, SMO meminta baris kernel saat diperlukan. Elemen
@@ -316,6 +886,8 @@ Kelas ini berada pada \texttt{src/models/\allowbreak naive\_\allowbreak bayes/\a
         \textbf{Nama} & \textbf{Keterangan} \\
         \midrule
         \texttt{alpha} & Hitungan tambahan pada \textit{Laplace smoothing} untuk prior dan likelihood, nilai awal 1. \\
+        \texttt{feature\_types} & Daftar jenis tiap fitur, \texttt{'categorical'} atau \texttt{'gaussian'}. Nilai bawaan \texttt{None} berarti semua fitur kategorikal. \\
+        \texttt{var\_smoothing} & Pecahan varians fitur yang ditambahkan ke varians tiap kelas pada fitur Gaussian, nilai awal $10^{-9}$. \\
         \texttt{classes\_} & Label kelas yang terurut. \\
         \texttt{class\_log\_prior\_} & $\log P(c)$ untuk setiap kelas. \\
         \texttt{feature\_params\_} & Tabel $\log P(x_j\mid c)$ untuk tiap fitur. \\
@@ -334,7 +906,23 @@ Pelatihan hanya menghitung frekuensi. Prior dihitung sebagai $P(c)=(n_c+\alpha)/
 \log\left(n_{c,j}+\alpha|V_j|\right)
 \]
 
-Himpunan $V_j$ adalah nilai yang muncul pada kolom $j$ di data latih, dan $n_{c,j}$ hanya menghitung baris yang nilainya tidak kosong. Pada pipeline akhir nilai kosong sudah dikodekan menjadi kategori sehingga dihitung seperti nilai biasa, sedangkan NaN yang masih tersisa tidak ikut dihitung. Nilai yang tidak pernah terlihat pada suatu kelas, atau tidak ada di data latih, memakai $\alpha/(n_{c,j}+\alpha|V_j|)$. Dengan $\alpha>0$, tidak ada peluang yang bernilai nol \cite{ref:materi-14, ref:manning-2008}.
+Himpunan $V_j$ adalah nilai yang muncul pada kolom $j$ di data latih, dan $n_{c,j}$ hanya menghitung baris yang nilainya tidak kosong. Pada representasi kategorikal di notebook, nilai kosong sudah dikodekan menjadi kategori sehingga dihitung seperti nilai biasa, sedangkan NaN yang masih tersisa tidak ikut dihitung. Nilai yang tidak pernah terlihat pada suatu kelas, atau tidak ada di data latih, memakai $\alpha/(n_{c,j}+\alpha|V_j|)$. Dengan $\alpha>0$, tidak ada peluang yang bernilai nol \cite{ref:materi-14, ref:manning-2008}.
+
+Jika \texttt{feature\_types} diberikan, fitur bertipe \texttt{'gaussian'}
+dimodelkan dengan distribusi normal per kelas. Pelatihan menyimpan rata-rata
+$\mu_{c,j}$ dan varians $\sigma^2_{c,j}$ dari baris kelas $c$ yang tidak
+kosong. Varians ditambah \texttt{var\_smoothing} kali varians seluruh kolom
+agar tidak nol, sehingga
+
+\[
+\log P(x_j\mid c)=-\tfrac12\log\left(2\pi\sigma^2_{c,j}\right)-\frac{(x_j-\mu_{c,j})^2}{2\sigma^2_{c,j}}.
+\]
+
+Pada mode ini, prior kelas memakai proporsi tanpa \textit{smoothing},
+$P(c)=n_c/n$, sedangkan fitur kategorikal tetap memakai tabel frekuensi di
+atas. Model \textit{submission} memakai mode campuran ini: kolom dengan
+paling banyak dua nilai diperlakukan sebagai kategorikal dan kolom lain
+sebagai Gaussian.
 
 \paragraph{Prediksi}
 Skor setiap kelas dihitung dalam ruang logaritma sehingga perkalian banyak peluang kecil tidak menyebabkan \textit{underflow}.
@@ -430,18 +1018,17 @@ diimputasi terlebih dahulu pada model pembanding.
         \texttt{n\_\allowbreak neighbors} dan \texttt{weights} yang sama dengan
         model sendiri, serta pencarian \textit{brute force}.
     \item \textbf{Decision tree.} \texttt{DecisionTreeClassifier} dengan
-        \texttt{criterion='entropy'} dan \texttt{ccp\_alpha} yang dipilih dari
-        enam kandidat antara $0$ dan $2\cdot 10^{-3}$ menggunakan F1 macro
-        pada data \textit{pruning}. Pembanding ini memakai CART biner sehingga
-        tidak identik dengan C4.5.
+        \texttt{criterion='entropy'} dan dua nilai \texttt{ccp\_alpha}, yaitu
+        $0$ dan $2\cdot 10^{-4}$, yang dilatih pada data pembentuk pohon.
+        Pembanding ini memakai CART biner sehingga tidak identik dengan C4.5.
     \item \textbf{\textit{Logistic Regression}.} \texttt{LogisticRegression}
-        dengan \texttt{solver='saga'} dan $C=1/(n\lambda)$ agar skala penalti
-        setara dengan model sendiri.
+        dengan \texttt{solver='saga'}, $C=1/(n\lambda)$ agar skala penalti
+        setara dengan model sendiri, serta batas iterasi dan toleransi yang sama.
     \item \textbf{SVM.} \texttt{SVC} dengan $C=1$, derajat 3, \texttt{coef0=1},
         $\gamma=1/d$, dan toleransi $10^{-3}$ untuk kernel linear, polinomial,
         dan RBF.
-    \item \textbf{\textit{Naive Bayes}.} \texttt{CategoricalNB} dengan prior
-        kelas yang diperhalus sama seperti model sendiri.
+    \item \textbf{\textit{Naive Bayes}.} \texttt{CategoricalNB} dengan $\alpha$
+        yang sama pada representasi kategorikal 5 \textit{bin}.
 \end{itemize}
 
 \subsubsection{Penyimpanan dan Pemuatan Model}
@@ -459,6 +1046,31 @@ tepercaya karena pemuatan dapat menjalankan kode.
 
 
 \subsection{Implementasi Bonus}
+
+Setiap algoritma optimasi dijalankan sebagai pilihan tambahan pada kelas
+model yang sama, sehingga hasilnya dapat dibandingkan langsung dengan cara
+pelatihan dasar. Berikut adalah tabel rangkuman bonus yang diimplementasikan.
+
+\begin{table}[H]
+\centering
+\small
+\caption{Daftar bonus yang dikerjakan}
+\label{tab:bonus}
+\begin{tabularx}{\textwidth}{@{}lX@{}}
+\toprule
+Bonus & Isi dan letak pembahasan \\
+\midrule
+Visualisasi DTL & Gambar pohon C4.5 dengan parameter \texttt{top\_n} dan \texttt{max\_depth} \\
+Video \textit{Logistic Regression} & Kontur \textit{log-loss} dan lintasan $(\theta_0,\theta_1)$ selama pelatihan \\
+Visualisasi SVM & Batas keputusan, margin, dan \textit{support vector} tiap kernel pada dua komponen PCA \\
+Graf \textit{Naive Bayes} & Hubungan kelas dan fitur beserta ketergantungan antarfitur \\
+Optimasi \textit{Logistic Regression} & \textit{Conjugate gradient ascent} dan L-BFGS dengan \textit{line search} \\
+Optimasi SVM & SMO \cite{ref:platt-1998} sebagai pengganti QP langsung, ditambah cache LRU untuk baris kernel \\
+Optimasi \textit{Naive Bayes} & \textit{Tree Augmented Naive Bayes} dengan struktur dari pohon rentang maksimum \\
+\textit{Cost-sensitive} & Pergeseran \textit{threshold} ke $2/3$ karena $C_{FP}=2C_{FN}$ \\
+\bottomrule
+\end{tabularx}
+\end{table}
 
 \subsubsection{Visualisasi Pohon Keputusan}
 
@@ -734,15 +1346,146 @@ pertama lalu mendatar karena gradiennya mengecil di dekat minimum.
 \caption{Kontur \textit{log-loss} dan lintasan parameter pada \textit{frame} akhir video}
 \label{fig:logvideo}
 \end{figure}
+
+\subsubsection{Optimasi Logistic Regression dengan Conjugate Gradient dan L-BFGS}
+\label{sec:bonus-logreg-opt}
+
+\textit{Gradient ascent} pada implementasi dasar memakai laju belajar tetap
+sehingga langkahnya mengecil saat gradien mengecil. Kriteria berhentinya,
+yaitu perubahan relatif \textit{loss}, dapat terpenuhi sebelum parameter
+mendekati optimum (Tabel~\ref{tab:logreg-solver}).
+Bonus ini menambahkan dua \textit{solver} yang memakai informasi kelengkungan,
+yaitu \textit{conjugate gradient ascent} (\texttt{conjugate\_gradient}) dan
+L-BFGS (\texttt{lbfgs}). Teorinya dibahas pada
+Bagian~\ref{sec:logreg-optimasi}. Implementasi mengikuti Minka
+\cite{ref:minka-2003}, dengan rumus gradien dari Shalizi
+\cite{ref:shalizi-2012}, sedangkan \textit{two-loop recursion} dan
+\textit{line search} Armijo mengikuti Nocedal dan Wright \cite{ref:nocedal-2006}.
+Keduanya ada di kelas \texttt{LogisticRegressionClassifier} dan dipilih
+lewat parameter \texttt{solver}, sehingga \texttt{predict},
+\texttt{predict\_proba}, \texttt{save}, dan \texttt{load} tidak berubah.
+
+Ada tiga perbedaan dengan \textit{gradient ascent}. Pertama, kedua
+\textit{solver} selalu memakai seluruh data (\texttt{batch\_size=None}) karena
+arah pencarian dan \textit{line search} membutuhkan gradien dan objektif yang
+konsisten antar-iterasi. Kedua, penalti yang didukung hanya tanpa penalti
+dan L2. Penalti L1 tidak dapat diturunkan di nol sehingga kelengkungan di
+sekitarnya tidak terdefinisi. Ketiga, ukuran langkah dipilih oleh \textit{line
+search} sehingga \texttt{learning\_rate} dan \texttt{patience} tidak dipakai.
+Pelatihan berhenti jika norma tak hingga gradien, $\lVert\mathbf{g}\rVert_\infty$,
+sudah tidak lebih dari \texttt{tol}. Bobot dan bias digabung menjadi satu
+vektor $\boldsymbol{\theta}=(\mathbf{w},b)$ dan dimulai dari nol.
+
+\begin{lstlisting}[caption={Arah pencarian L-BFGS dengan \textit{two-loop recursion}}, label={lst:lbfgs}]
+@staticmethod
+def _lbfgs_direction(gradient, history):
+    direction = gradient.copy()
+    alphas = []
+    for s, y, rho in reversed(history):
+        alpha = rho * (s @ direction)
+        alphas.append(alpha)
+        direction -= alpha * y
+    if history:
+        s, y, _ = history[-1]
+        direction *= (s @ y) / (y @ y)
+    for (s, y, rho), alpha in zip(history, reversed(alphas)):
+        beta = rho * (y @ direction)
+        direction += s * (alpha - beta)
+    return direction
+\end{lstlisting}
+
+Fungsi \texttt{\_lbfgs\_direction} menghitung perkalian taksiran $H^{-1}$
+dengan gradien tanpa menyimpan matriks $d\times d$. Variabel
+\texttt{history} berisi paling banyak 10 pasangan $(\mathbf{s}_k,\mathbf{y}_k,\rho_k)$,
+dengan $\mathbf{s}_k$ perubahan parameter, $\mathbf{y}_k$ perubahan gradien, dan
+$\rho_k=1/(\mathbf{s}_k^{T}\mathbf{y}_k)$. \textit{Loop} pertama berjalan dari
+pasangan terbaru ke terlama dan mengurangi komponen gradien searah
+$\mathbf{y}_k$. Hasilnya diskalakan dengan
+$\mathbf{s}^{T}\mathbf{y}/\mathbf{y}^{T}\mathbf{y}$ dari pasangan terakhir
+sebagai taksiran awal $H^{-1}$. \textit{Loop} kedua berjalan dari pasangan
+terlama ke terbaru dan menambahkan kembali komponen searah $\mathbf{s}_k$.
+Biayanya $O(md)$ untuk $m$ pasangan. Karena objektif dimaksimalkan, nilai
+$\mathbf{y}_k$ yang disimpan adalah $\mathbf{g}_k-\mathbf{g}_{k+1}$ agar
+kelengkungannya bernilai positif. Pasangan dengan
+$\mathbf{s}_k^{T}\mathbf{y}_k$ yang tidak positif dibuang. Jika belum ada
+pasangan, arah pencarian sama dengan gradien.
+
+\begin{lstlisting}[caption={Arah \textit{conjugate gradient} Hestenes--Stiefel}, label={lst:cg}]
+@staticmethod
+def _conjugate_direction(gradient, previous_gradient, previous_direction):
+    difference = gradient - previous_gradient
+    denominator = previous_direction @ difference
+    scale = np.linalg.norm(previous_direction) * np.linalg.norm(difference)
+    if abs(denominator) <= 1e-12 * max(scale, np.finfo(float).tiny):
+        return gradient.copy()
+    beta = (gradient @ difference) / denominator
+    return gradient - beta * previous_direction
+\end{lstlisting}
+
+Fungsi \texttt{\_conjugate\_direction} menghitung
+$\mathbf{u}=\mathbf{g}-\beta\,\mathbf{u}^{\mathrm{lama}}$ dengan $\beta$
+Hestenes--Stiefel. Jika penyebutnya hampir nol, fungsi kembali memakai gradien
+agar tidak terjadi pembagian dengan nol. Arah juga diatur ulang ke gradien
+setiap $d+1$ iterasi, sesuai jumlah parameter, karena sifat konjugat lama-lama
+hilang pada fungsi yang tidak kuadratik \cite[bab~5]{ref:nocedal-2006}.
+
+\begin{lstlisting}[caption={Langkah awal \textit{conjugate gradient} dari kelengkungan sepanjang arah}, label={lst:cg-step}]
+step = 1.0
+if self.solver == "conjugate_gradient":
+    probabilities = self._sigmoid(X @ theta[:-1] + theta[-1])
+    projected = X @ direction[:-1] + direction[-1]
+    curvature = np.mean(probabilities * (1 - probabilities) * projected**2)
+    curvature += l2 * (direction[:-1] @ direction[:-1])
+    if np.isfinite(curvature) and curvature > 0:
+        step = (gradient @ direction) / curvature
+    if not np.isfinite(step) or step <= 0:
+        step = 1.0
+\end{lstlisting}
+
+Cuplikan ini menghitung langkah Newton di sepanjang arah $\mathbf{u}$,
+$\eta=\mathbf{g}^{T}\mathbf{u}/(-\mathbf{u}^{T}H\mathbf{u})$. Variabel
+\texttt{projected} berisi $\mathbf{u}^{T}\mathbf{x}_i$ untuk semua baris
+sekaligus, sehingga $-\mathbf{u}^{T}H\mathbf{u}$ didapat dalam $O(nd)$ tanpa
+membentuk Hessian. Objektif pada kelas ini adalah rata-rata, jadi suku data
+memakai \texttt{np.mean}. Suku L2 hanya memakai komponen bobot karena bias
+tidak dikenai penalti. Pada L-BFGS, langkah awalnya 1 karena arah
+pencarian sudah memuat skala dari taksiran $H^{-1}$.
+
+\begin{lstlisting}[caption={\textit{Backtracking line search} dengan syarat Armijo}, label={lst:armijo}]
+def _line_search(self, X, y, theta, objective, gradient, direction, step):
+    slope = gradient @ direction
+    for _ in range(60):
+        candidate = theta + step * direction
+        value, dw, db = self._log_likelihood_gradient(X, y, candidate[:-1], candidate[-1])
+        next_gradient = np.r_[dw, db]
+        if np.isfinite(value) and value >= objective + 1e-4 * step * slope:
+            if np.array_equal(candidate, theta):
+                return None
+            return candidate, value, next_gradient
+        step *= 0.5
+    return None
+\end{lstlisting}
+
+Langkah awal dari kedua \textit{solver} diuji dengan syarat Armijo dengan
+$c=10^{-4}$. Jika objektif belum cukup naik, langkah dibagi dua, paling banyak
+60 kali. Nilai \texttt{None} dikembalikan jika tidak ada langkah yang memenuhi
+syarat atau langkahnya terlalu kecil sampai parameter tidak berubah. Pada kasus
+itu pelatihan berhenti dan \texttt{converged\_} bernilai \texttt{False}.
+Sebelum \textit{line search}, metode \texttt{\_fit\_line\_search} juga
+memeriksa bahwa $\mathbf{g}^{T}\mathbf{u}>0$. Jika arah tidak menaikkan
+objektif, arah diganti gradien dan riwayat L-BFGS dikosongkan. Setiap iterasi
+mencatat \textit{loss} pada \texttt{loss\_history\_}, sehingga kurva
+\textit{loss} ketiga \textit{solver} dapat dibandingkan langsung.
 \subsubsection{Visualisasi Support Vector Machine}
 
 Untuk membandingkan bentuk batas keputusan tiap kernel, notebook menghitung
 PCA dari 1.000 baris latih yang sudah dipraproses. Komponen pertama (PC1)
-menjelaskan 16,0\% varians data tersebut, sedangkan komponen kedua (PC2)
-menjelaskan 10,8\%. Enam model pada Gambar~\ref{fig:svm-batas} dilatih
-ulang dari dua komponen yang sama. Karena keduanya hanya mencakup sekitar
-26,8\% variasi data latih, gambar ini tidak mewakili batas keputusan model
-29 fitur yang hasil validasinya dirangkum pada Tabel~\ref{tab:svm-kernel}.
+menjelaskan 18,4\% varians data tersebut, sedangkan komponen kedua (PC2)
+menjelaskan 17,0\%. Enam model pada Gambar~\ref{fig:svm-batas} dilatih
+ulang dari dua komponen yang sama dengan $\gamma=1/2$. Karena keduanya hanya
+mencakup sekitar 35,4\% variasi data latih, gambar ini tidak mewakili batas
+keputusan model 55 fitur yang hasil validasinya dirangkum pada
+Tabel~\ref{tab:svm-kernel}.
 
 Fungsi \texttt{plot\_svm\_boundary} mengevaluasi
 \texttt{decision\_function} pada kisi titik. Warna latar menunjukkan kelas
@@ -765,13 +1508,15 @@ hasil prediksi.}
 \label{fig:svm-batas}
 \end{figure}
 
-Pada kedua panel linear, skor tidak mencapai nol di area gambar,
-sehingga seluruh latar menunjukkan kelas tidak batal. Kernel polinomial
-dan RBF membentuk wilayah prediksi batal. Pada panel RBF, misalnya,
-sebagian wilayah ini dikelilingi kontur tertutup. Bentuk wilayah tersebut
-perlu dibaca bersama status konvergensinya. Batas pada panel QP
-polinomial berasal dari iterasi terakhir saat batas 50.000 langkah
-tercapai, sebelum optimasi memenuhi toleransi.
+Pada kedua panel linear, batas keputusan berupa garis lurus yang
+memisahkan wilayah kanan (prediksi batal) dari sisa bidang, dan QP serta
+SMO menghasilkan batas yang hampir sama. Pada kernel RBF, wilayah prediksi
+batal berada di bagian kanan atas dan dikelilingi kontur yang melengkung
+mengikuti sebaran data, juga hampir sama pada kedua pemecah. Bentuk
+wilayah perlu dibaca bersama status konvergensinya. Pada kedua panel
+polinomial, optimasi mencapai batas 50.000 iterasi sebelum memenuhi
+toleransi, sehingga batasnya berasal dari iterasi terakhir dan bentuknya
+berbeda antara QP dan SMO.
 \subsubsection{Visualisasi Graf Bayesian Network (Naive Bayes)}
 
 Fungsi \texttt{plot\_naive\_bayes\_graph} pada \texttt{src/models/naive\_bayes/visualization.py} menggambar graf yang menampilkan hubungan antara variabel kelas dan fitur, menggunakan Matplotlib. Kelas digambar sebagai simpul di tengah dengan panah ke setiap fitur, sesuai struktur Naive Bayes. Tebal panah menyatakan informasi bersama (\textit{mutual information}) antara fitur dan kelas \cite{ref:cover-2006}.

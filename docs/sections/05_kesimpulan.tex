@@ -12,52 +12,78 @@ dibandingkan dengan scikit-learn. Analisis data menunjukkan bahwa sekitar 33\% p
 dibatalkan dan sekitar 39\% baris memiliki nilai kosong. Oleh karena itu
 \textit{preprocessing} disesuaikan dengan kebutuhan tiap algoritma, dan
 pembagian data memakai StratifiedGroupKFold agar baris yang identik
-tidak berada pada data latih dan validasi sekaligus. Hasil implementasi sendiri
-sesuai dengan scikit-learn. KNN dan \textit{Naive Bayes} menghasilkan
-probabilitas yang hampir identik, dan selisih metrik \textit{Logistic Regression}
-kurang dari 0,002. Pada tolok ukur awal SVM, QP, SMO, dan \texttt{SVC}
-menghasilkan metrik klasifikasi yang sama untuk setiap kernel, tetapi
-SMO lebih cepat daripada QP pada pengukuran tersebut. C4.5 berbeda karena algoritma pembandingnya adalah CART,
-tetapi hasilnya tetap sebanding.
+tidak berada pada data latih dan validasi sekaligus. Selain fitur asli, setiap
+model memakai blok fitur tambahan, seperti fitur kalender, perilaku pemesanan,
+\textit{target encoding}, dan ringkasan tetangga, yang dihitung secara
+\textit{out-of-fold} agar label tidak bocor.
 
-dalam perbandingan awal validasi silang lima lipatan, KNN (F1 macro 0,832)
-dan C4.5 (0,830) memberikan performa terbaik dengan selisih lebih kecil
-daripada variasi antar-fold. SVM linear pada perbandingan itu masih memakai
-1.000 baris latih per lipatan. Dalam eksperimen lanjutan SVM, SMO RBF dengan
-12.000 baris memperoleh F1 makro rata-rata 0,818690 pada data pengembangan.
-Konfigurasi terpilih memakai 16.000 baris dan mencapai 0,821126 pada data
-pengembangan serta 0,830948 pada 5.475 baris \textit{holdout}. Angka
-\textit{holdout} ini tidak langsung sebanding dengan rata-rata validasi silang
-lima lipatan. Tree Augmented Naive Bayes (bonus) menaikkan F1 macro Naive Bayes
-dari 0,748 menjadi 0,775 dengan memodelkan ketergantungan antarfitur, tetapi
-belum menyamai KNN dan C4.5. Pada bonus, penggeseran ambang menjadi 0,667 untuk
-\textit{cost-sensitive classification} menurunkan total biaya pada semua model yang dievaluasi,
-dengan biaya terendah dicapai KNN (5.093). Visualisasi pohon, video lintasan
-parameter \textit{Logistic Regression}, dan graf \textit{Naive Bayes} juga
-berhasil dibuat untuk membantu menjelaskan perilaku model.
+Hasil implementasi sendiri sesuai dengan scikit-learn. KNN dan
+\textit{Naive Bayes} kategorikal memberikan metrik yang sama sampai empat
+desimal, QP dan SMO hanya berbeda paling banyak 0,0006 dari \texttt{SVC}, dan
+selisih F1 macro \textit{Logistic Regression} paling besar 0,004. C4.5 berbeda
+karena algoritma pembandingnya adalah CART, tetapi C4.5 dengan
+\textit{Reduced Error Pruning} justru unggul 0,020 pada F1 macro.
+
+Pada satu pembagian validasi berisi 5.475 baris, SVM dengan kernel RBF,
+SMO, dan ambang skor $-0{,}1875$ memberikan hasil terbaik (F1 macro 0,862,
+ROC-AUC 0,925), disusul C4.5 (0,842) dan KNN (0,819). Ketiganya dapat
+menangkap pola nonlinear, dan \textit{confusion matrix} menunjukkan bahwa
+perbedaan di antara ketiganya terutama berasal dari jumlah pembatalan yang
+terlewat. \textit{Logistic Regression} (0,767) terlalu jarang memprediksi
+batal, sedangkan \textit{Naive Bayes} campuran (0,651) terlalu sering
+memprediksi batal walaupun ROC-AUC-nya 0,890. Masalah pada \textit{Naive Bayes}
+campuran terletak pada kalibrasi probabilitas, bukan pada urutan skor.
+Karena hanya ada satu pembagian validasi, selisih yang kecil antarvarian
+belum tentu bermakna.
+
+Pada bonus, Tree Augmented Naive Bayes menaikkan F1 macro Naive Bayes
+kategorikal dari 0,752 menjadi 0,776 dengan memodelkan ketergantungan
+antarfitur. Penggeseran ambang menjadi $2/3$ untuk \textit{cost-sensitive
+classification} menurunkan total biaya pada C4.5, KNN, dan \textit{Naive
+Bayes}, dengan biaya terendah dicapai C4.5 (997), tetapi menaikkan biaya
+\textit{Logistic Regression} karena probabilitasnya tidak terkalibrasi. Pada
+bonus optimasi \textit{Logistic Regression}, \textit{conjugate gradient
+ascent} dan L-BFGS mencapai \textit{loss} latih yang jauh lebih rendah
+daripada \textit{gradient ascent}, yang berhenti terlalu dini karena kriteria
+perubahan relatif \textit{loss}. Tanpa penalti, F1 macro validasi naik dari
+0,767 menjadi sekitar 0,83, dan L-BFGS membutuhkan iterasi paling sedikit.
+SMO 5,5 sampai 23 kali lebih cepat daripada QP dengan hasil yang hampir
+sama. Visualisasi pohon, batas keputusan SVM, video lintasan parameter
+\textit{Logistic Regression}, dan graf \textit{Naive Bayes} juga berhasil
+dibuat untuk membantu menjelaskan perilaku model.
 
 \subsection{Saran}
 
-Untuk pengembangan lebih lanjut, disarankan mencoba model \textit{ensemble}
-seperti \textit{Random Forest} atau \textit{gradient boosting} yang menggabungkan
-kelebihan pohon keputusan, serta melakukan \textit{hyperparameter tuning} yang
-lebih ekstensif. Fitur interaksi dapat diuji pada \textit{Logistic Regression}.
-Ambang SVM terpilih dioptimalkan untuk F1 makro; jika sasaran berubah menjadi
-biaya, ambang skor keputusan dapat dipilih ulang berdasarkan biaya pada data
-validasi. Karena TAN menunjukkan bahwa ketergantungan antarfitur meningkatkan
-skor Naive Bayes, model yang menangkap interaksi lebih dari dua fitur dapat
-dicoba untuk menyempitkan selisih dengan KNN dan C4.5.
+Evaluasi sebaiknya diperluas menjadi \textit{cross-validation} penuh, dengan
+seluruh \textit{preprocessing} dan blok fitur diulang pada tiap \textit{fold},
+agar selisih antarmodel dapat dibandingkan dengan simpangan bakunya.
+Konfigurasi yang saat ini ditetapkan saat pengembangan, misalnya kombinasi
+blok fitur, nilai $C$ dan $\gamma$ SVM, serta ambang SVM, juga perlu
+dipilih ulang di dalam prosedur tersebut. Model \textit{ensemble} seperti
+\textit{Random Forest} atau \textit{gradient boosting} dapat dicoba karena
+C4.5 sudah memberikan hasil yang baik.
 
-Dari sisi implementasi, cache LRU membatasi memori untuk penyimpanan nilai
-kernel SMO. Pada pengukuran dengan 4.000 sampel, penggunaan RAM proses turun
-dengan label prediksi yang sama, tetapi pelatihan lebih lama
-(Tabel~\ref{tab:svm-cache}). Pada 16.000 sampel, pengujian cache 512 MiB tidak
-selesai dalam batas waktu pengukuran. Karena itu, penggunaan cache lebih
-sesuai saat batas RAM menjadi pertimbangan utama. Matriks penuh tetap
-menjadi bawaan SMO dan selalu dipakai pada QP.
-Implementasi \textit{Logistic Regression} dengan \textit{Elastic Net} juga jauh
-lebih lambat daripada scikit-learn sehingga dapat dipercepat dengan
-laju belajar adaptif atau \textit{solver} yang lebih efisien. Terakhir, laporan
-ini belum memuat skor \textit{leaderboard} Kaggle untuk seluruh model, sehingga
-pengujian pada data uji perlu dilengkapi untuk memastikan hasil validasi dapat
-digeneralisasi.
+Untuk \textit{Naive Bayes} campuran, probabilitas perlu dikalibrasi atau
+ambangnya dipilih ulang pada data validasi, dan blok fitur yang saling
+berkorelasi dapat dikurangi. Representasi kategorikal atau TAN dapat
+dipertimbangkan sebagai konfigurasi \textit{submission} karena F1 macro-nya
+lebih tinggi pada pembagian validasi ini. Ambang \textit{cost-sensitive} juga
+sebaiknya dipilih langsung dari biaya pada data validasi, bukan hanya dari
+rumus $C_{FP}/(C_{FP}+C_{FN})$, karena rumus tersebut mengasumsikan
+probabilitas yang terkalibrasi.
+
+Dari sisi implementasi, kriteria berhenti \textit{gradient ascent} perlu
+diganti dengan norma gradien, karena kriteria perubahan relatif
+\textit{loss} menghentikan pelatihan sebelum mendekati optimum. L-BFGS atau
+\textit{conjugate gradient} dapat dipakai untuk model \textit{submission}
+tanpa penalti atau dengan L2. L-BFGS dan \textit{conjugate gradient} yang
+sudah dibuat hanya mendukung tanpa penalti dan L2, sehingga metode untuk
+objektif yang tidak mulus, misalnya \textit{proximal gradient} atau
+\textit{coordinate descent}, dapat dicoba untuk L1 dan \textit{Elastic Net}.
+Cache LRU membatasi memori untuk penyimpanan nilai kernel SMO. Pada
+pengukuran dengan 4.000 sampel, penggunaan RAM proses turun dengan label
+prediksi yang sama, tetapi pelatihan lebih lama (Tabel~\ref{tab:svm-cache}).
+Pada 16.000 sampel, pengujian cache 512 MiB tidak selesai dalam batas waktu
+pengukuran. Karena itu, penggunaan cache lebih sesuai saat batas RAM menjadi
+pertimbangan utama. Matriks penuh tetap menjadi bawaan SMO dan selalu
+dipakai pada QP.

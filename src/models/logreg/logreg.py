@@ -190,6 +190,15 @@ class LogisticRegressionClassifier:
                 return w, b, epoch, True
         return w, b, epoch, False
 
+    # Referensi optimizer:
+    # - T. P. Minka, "A comparison of numerical optimizers for logistic regression",
+    #   2003 (rev. 2007), bagian 4 dan 6:
+    #   https://tminka.github.io/papers/logreg/minka-logreg.pdf
+    # - C. R. Shalizi, "Logistic Regression", bab 12 Advanced Data Analysis from an
+    #   Elementary Point of View, 2012, bagian 12.2.1 dan 12.3:
+    #   https://www.stat.cmu.edu/~cshalizi/uADA/12/lectures/ch12.pdf
+    # - J. Nocedal dan S. J. Wright, Numerical Optimization, ed. 2, 2006,
+    #   bab 3 (Armijo), bab 5 (CG), bab 7 (L-BFGS two-loop recursion).
     @staticmethod
     def _lbfgs_direction(gradient, history):
         # Two-loop recursion untuk inverse Hessian dari negative log-likelihood.
