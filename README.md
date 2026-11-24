@@ -77,6 +77,11 @@ fitur, ambang bila relevan, dan sumber sebelum refit. Holdout hanya untuk
 pelaporan. Notebook menyimpan visualisasi pohon sebagai `output/c45_tree.png`.
 Laporan memakai aset di `docs/figures/` dan gambar TAN di `output/tan_structure.png`.
 
+Bagian bonus membandingkan *gradient ascent*, *conjugate gradient*, dan L-BFGS
+tanpa penalti dan dengan L2, lalu menampilkan grafik loss pelatihan. Bagian TAN
+menampilkan hasil validasi silang berpasangan dengan Naive Bayes beserta graf
+struktur TAN. Kedua eksperimen tidak mengubah pemilihan model submisi.
+
 Notebook tidak membaca `ground_truth.csv` atau mengevaluasi prediksi submisi
 terhadap label test. Evaluasi tersebut dilakukan terpisah di luar notebook
 saat label test tersedia. ID test tetap divalidasi terhadap
