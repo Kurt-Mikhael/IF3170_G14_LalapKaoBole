@@ -88,13 +88,12 @@ terhadap label test. Evaluasi tersebut dilakukan terpisah di luar notebook
 saat label test tersedia. ID test tetap divalidasi terhadap
 `sample_submission.csv` sebelum berkas ditulis.
 
-Artefak eksperimen lama dan bonus TAN yang sudah ada di `output/` bukan
-bagian dari lima pasangan CSV/PKL final.
+Gambar dan video di `output/` adalah hasil bonus dan bukan bagian dari lima
+pasangan CSV/PKL final.
 
 Setiap PKL berisi sebuah dictionary dengan model terlatih yang tepat untuk CSV
 pasangannya serta konfigurasi atau referensi prapemrosesan yang diperlukan
 untuk prediksi. Struktur prapemrosesan mengikuti kebutuhan model.
-Artefak lama dapat berasal dari scikit-learn 1.9.1 dan konfigurasi berbeda.
 Kompatibilitas PKL lintas versi tidak dijamin. Untuk pengumpulan Kaggle,
 bandingkan ID dan prediksi hasil `Run All` dengan CSV yang benar-benar diunggah.
 

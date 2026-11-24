@@ -16,7 +16,7 @@ from .kernel import (
 
 
 class SVM:
-    cache_size_mb = None  # Keep dense behavior, including for previously saved models.
+    cache_size_mb = None  # bawaan matriks penuh, termasuk untuk model lama yang sudah disimpan
 
     def __init__(
         self,
@@ -183,7 +183,7 @@ class SVM:
             gamma = float(self.gamma)
         n = len(X)
 
-        # Each cached row is n float64 values; compare before allocating the Gram matrix.
+        # tiap baris cache berisi n nilai float64, dibandingkan dulu sebelum membuat matriks Gram
         cache_size_mb = self.cache_size_mb
         dense = self.solver == "qp" or cache_size_mb is None or (
             8 * n * n <= cache_size_mb * 1024**2
@@ -254,7 +254,7 @@ class SVM:
         return self
 
     def _fit_qp(self, K):
-        # Q weights each kernel entry by both labels; grad is Q alpha - 1.
+        # Q membobot tiap entri kernel dengan kedua label, gradiennya Q alpha - 1
         y, a, C = self._y_train, self._alphas, float(self.C)
         Q = (y[:, None] * y[None, :]) * K
         lipschitz = max(float(np.linalg.eigvalsh(Q)[-1]), 1e-12)
@@ -263,7 +263,7 @@ class SVM:
         iteration = 0
         for iteration in range(1, self.max_iter + 1):
             candidate = self._project(z - step * (Q @ z - 1.0), y, C)
-            # The projected-gradient mapping is a scaled KKT residual.
+            # pemetaan projected gradient adalah residu KKT yang diskalakan
             residual = np.max(np.abs(candidate - z)) / step
             if not np.isfinite(residual):
                 raise FloatingPointError("non-finite QP optimization step")
@@ -273,7 +273,7 @@ class SVM:
                 if self._kkt_residual(K) <= self.tol:
                     a = candidate
                     break
-            # Momentum extrapolates the last feasible step; project again next round.
+            # momentum memperpanjang langkah layak terakhir, lalu diproyeksikan lagi di putaran berikutnya
             next_momentum = (1 + np.sqrt(1 + 4 * momentum * momentum)) / 2
             z = candidate + ((momentum - 1) / next_momentum) * (candidate - a)
             a, momentum = candidate, next_momentum
@@ -283,7 +283,7 @@ class SVM:
 
     @staticmethod
     def _project(v, y, C):
-        # Projection clips v - lambda*y; bisection chooses lambda for y.alpha=0.
+        # proyeksi memotong v - lambda*y, bisection memilih lambda agar y.alpha=0
         low, high = -2 * (np.max(np.abs(v)) + C + 1), 2 * (np.max(np.abs(v)) + C + 1)
         for _ in range(80):
             mid = (low + high) / 2
@@ -307,7 +307,7 @@ class SVM:
                 return False
             ai, aj, yi, yj, Ei, Ej = a[i], a[j], y[i], y[j], errors[i], errors[j]
             s = yi * yj
-            # L/H bound the second alpha while preserving the label-weighted sum.
+            # L dan H membatasi alpha kedua agar jumlah berbobot label tetap
             if yi != yj:
                 L, H = max(0.0, aj - ai), min(C, C + aj - ai)
             else:
@@ -316,12 +316,12 @@ class SVM:
                 return False
             row_i, row_j = kernel_row(i), kernel_row(j)
             k11, k12, k22 = row_i[i], row_i[j], row_j[j]
-            eta = k11 + k22 - 2 * k12  # Pair-direction objective curvature.
+            eta = k11 + k22 - 2 * k12  # kelengkungan objektif searah pasangan
             if eta > 0:
                 new_j = np.clip(aj + yj * (Ei - Ej) / eta, L, H)
             else:
-                # Compare Platt's dual objective at both feasible segment endpoints.
-                # Our prediction adds b; Platt's threshold has the opposite sign.
+                # bandingkan objektif dual Platt di kedua ujung segmen yang layak
+                # prediksi kita menambah b, ambang Platt bertanda sebaliknya
                 fi = yi * (Ei - self._b) - ai * k11 - s * aj * k12
                 fj = yj * (Ej - self._b) - s * ai * k12 - aj * k22
                 li = ai + s * (aj - L)
@@ -351,7 +351,7 @@ class SVM:
                 return False
             new_i = ai + s * (aj - new_j)
             old_b = self._b
-            # b1/b2 each place its updated free point exactly on the margin.
+            # b1 dan b2 menempatkan titik bebas yang diperbarui tepat di margin
             b1 = old_b - Ei - yi * (new_i - ai) * k11 - yj * (new_j - aj) * k12
             b2 = old_b - Ej - yi * (new_i - ai) * k12 - yj * (new_j - aj) * k22
             if bound_eps < new_i < C - bound_eps:
@@ -387,7 +387,7 @@ class SVM:
                 if not ((r < -self.tol and a[j] < C) or (r > self.tol and a[j] > 0)):
                     continue
                 nonbound = np.flatnonzero((a > bound_eps) & (a < C - bound_eps))
-                # First choose the non-bound error furthest from E_j, then randomized scans.
+                # pilih dulu galat non-batas terjauh dari E_j, lalu pindai acak
                 if len(nonbound) > 1:
                     first = nonbound[np.argmax(np.abs(errors[j] - errors[nonbound]))]
                     if take(first, j):
@@ -415,7 +415,7 @@ class SVM:
     def _kkt_residual(self, K):
         a, y = self._alphas, self._y_train
         bound_eps = min(1e-10, float(self.C) * 1e-8)
-        # Check exact kernel KKT margins, streaming only nonzero dual weights when cached.
+        # periksa margin KKT kernel secara tepat, hanya bobot dual tidak nol yang dialirkan saat memakai cache
         if isinstance(K, _KernelRowCache):
             raw = np.zeros(len(y))
             for i in np.flatnonzero(a):
@@ -428,7 +428,7 @@ class SVM:
         return float(max(np.max(lower), np.max(upper)))
 
     def _bias(self, K):
-        # Free support vectors set b; otherwise average the KKT-allowed bias interval.
+        # support vector bebas menentukan b, jika tidak diambil rata-rata interval bias yang diizinkan KKT
         y, a, C = self._y_train, self._alphas, float(self.C)
         raw = (a * y) @ K
         bound_eps = min(1e-10, C * 1e-8)

@@ -38,7 +38,7 @@ def create_logreg_training_animation(
     if len(trajectory) != len(model.loss_history_) or not np.isfinite(trajectory).all():
         raise ValueError("Parameter history must match the recorded training epochs")
 
-    # Combining identical (feature, label) pairs preserves the exact dataset loss.
+    # pasangan (fitur, label) yang sama digabung, loss data tetap sama persis
     pairs, counts = np.unique(
         np.column_stack((X[:, 0], (y == model.classes_[1]).astype(float))),
         axis=0, return_counts=True,
@@ -100,7 +100,7 @@ def create_logreg_training_animation(
         )
         return path_line, current, loss_line, loss_point, status
 
-    # Hold the initial and final states so the exported video is easy to inspect.
+    # keadaan awal dan akhir ditahan agar video mudah diperiksa
     frames = np.concatenate((np.zeros(fps, dtype=int), epochs, np.full(2 * fps, epochs[-1])))
     return FuncAnimation(
         fig, update, frames=frames, interval=1000 / fps,

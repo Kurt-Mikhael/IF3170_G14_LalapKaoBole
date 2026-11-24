@@ -63,7 +63,7 @@ def plot_svm_boundary(
         if bounds.shape != (2, 2) or not np.isfinite(bounds).all() or np.any(bounds[:, 0] >= bounds[:, 1]):
             raise ValueError("bounds must contain finite increasing x and y limits")
 
-    # Bounds include both observed samples and support vectors, then add modest padding.
+    # batas mencakup sampel dan support vector, lalu diberi sedikit ruang
     points = np.concatenate((X, support), axis=0)
     if bounds is None:
         lower = points.min(axis=0)
@@ -74,7 +74,7 @@ def plot_svm_boundary(
         upper = upper + 0.05 * span
     else:
         lower, upper = bounds[:, 0], bounds[:, 1]
-    # x_grid and y_grid define feature-coordinate axes shared by contour evaluation.
+    # x_grid dan y_grid adalah sumbu koordinat fitur untuk menggambar kontur
     x_grid = np.linspace(lower[0], upper[0], resolution)
     y_grid = np.linspace(lower[1], upper[1], resolution)
     grid_x, grid_y = np.meshgrid(x_grid, y_grid)
@@ -101,7 +101,7 @@ def plot_svm_boundary(
     markers = ("o", "^", "s", "D")
     colors = ("#0072B2", "#D55E00")
     if show_regions:
-        # SVM predicts class 1 at f >= 0; integer bins preserve that tie rule.
+        # SVM memprediksi kelas 1 saat f >= 0, bin bilangan bulat menjaga aturan itu
         predicted = (score_grid >= 0).astype(int)
         ax.contourf(
             grid_x, grid_y, predicted, levels=(-0.5, 0.5, 1.5),

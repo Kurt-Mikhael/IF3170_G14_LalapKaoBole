@@ -43,6 +43,6 @@ def gaussian_kernel(X, Z, *, gamma):
 
 
 def _gaussian_from_norms(X, Z, x_sq, z_sq, gamma):
-    # ||x-z||^2 = ||x||^2 + ||z||^2 - 2 x.z; the norms do not depend on the pair.
+    # ||x-z||^2 = ||x||^2 + ||z||^2 - 2 x.z, norm tidak bergantung pada pasangannya
     distances_sq = np.maximum(x_sq + z_sq - 2 * (X @ Z.T), 0.0)
     return np.exp(-gamma * distances_sq)

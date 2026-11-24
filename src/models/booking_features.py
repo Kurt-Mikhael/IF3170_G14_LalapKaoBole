@@ -261,7 +261,7 @@ def _folds(groups: np.ndarray, seed: int):
     unique = np.unique(groups)
     if len(unique) < 2:
         raise ValueError("supervised features require at least two distinct raw groups")
-    # A seeded digest order makes the assignment reproducible without using labels.
+    # urutan digest ber-seed membuat pembagian bisa diulang tanpa memakai label
     ordered = sorted(
         unique.tolist(),
         key=lambda value: hashlib.sha256(f"{seed}:{int(value)}".encode()).digest(),
@@ -301,8 +301,7 @@ def _te(train_cat, query_cat, y, groups, seed):
             .fillna(prior)
             .to_numpy()
         )
-    # Means are already bounded; scaling across OOF rows would let a row's
-    # label affect the transform applied to that same row through other folds.
+    # rata-rata sudah terbatas, jadi tidak diskalakan antar-baris OOF agar label tidak bocor lewat fold lain
     return a, b
 
 
@@ -313,7 +312,7 @@ def _knn(base_train, base_query, y, groups, seed):
     def features(q, ref, labels):
         if len(ref) == 0:
             return np.zeros((len(q), 8))
-        # Select dimensions using labels available in this reference fold only.
+        # dimensi dipilih hanya dari label di fold referensi ini
         centered = ref - ref.mean(axis=0)
         target = labels - labels.mean()
         denom = np.linalg.norm(centered, axis=0) * np.linalg.norm(target)
@@ -335,7 +334,7 @@ def _knn(base_train, base_query, y, groups, seed):
         result = np.empty((len(v), 8))
         for start in range(0, len(v), 256):
             chunk = v[start : start + 256]
-            # Dot-product identity bounds memory to one chunk-by-reference matrix.
+            # identitas dot product membatasi memori ke satu matriks chunk kali referensi
             d2 = np.maximum(
                 np.einsum("ij,ij->i", chunk, chunk)[:, None]
                 + r_norm[None, :]
@@ -364,8 +363,8 @@ def _knn(base_train, base_query, y, groups, seed):
     for fit, valid in folds:
         output[valid] = features(base_train[valid], base_train[fit], y[fit])
     external = features(base_query, base_train, y)
-    # Target means are bounded and distances use standardized base features.
-    # Avoid a global label-informed scaler across folds (which leaks indirectly).
+    # rata-rata target sudah terbatas dan jarak memakai fitur dasar yang distandardisasi
+    # penskala global yang memakai label dihindari karena bocor secara tidak langsung
     return output, external
 
 
